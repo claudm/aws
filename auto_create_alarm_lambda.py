@@ -11,8 +11,14 @@ ec2_sns = 'Your Topic'
 
 def lambda_handler(event, context):
 
-    instanceid=event['detail']['instance-id']
-    create_alarm(instanceid)
+   
+    id=event['detail']['instance-id'] #descomentar para obter o id do evento 
+    #id='i-03c5dee657d6f5ac'           #descomentar para digitar o id  manualmente e comentar a linha de cima
+    create_alarm(id)                  #descomentar para executar a criação de alarms para uma instancia
+    
+    #descomentar as duas linhas abaixo para executar a criação de alarmes para vários ids
+   # for id in ('i-13c5d7ee657d4f5ac7','i-01176e8c0a0819230','i-0c7f07dd3ae7fc3b2'):
+     #   create_alarm(id)
     
 
 
@@ -27,10 +33,10 @@ def create_alarm(instanceid):
         
         
  
-     # Create Alarm "MemoryUtilization Utilization Less than 20% for 3+ Minutes"
+     # Create Alarm "MemoryUtilization Utilization More than 90% for 3+ Minutes"
         cw.put_metric_alarm(
         AlarmName="%s %s High MemoryUtilization Utilization Warning" % (instance_name, instanceid),
-        AlarmDescription='MemoryUtilization Utilization Less than 20% for 3+ Minutes',
+        AlarmDescription='MemoryUtilization Utilization More than 90% for 3+ Minutes',
         ActionsEnabled=True,
         AlarmActions=[
             ec2_sns
@@ -47,7 +53,7 @@ def create_alarm(instanceid):
         Period=300,
         EvaluationPeriods=3,# tempo em minutos
         Threshold=20,
-        ComparisonOperator='LessThanThreshold'
+        ComparisonOperator='GreaterThanOrEqualToThreshold'
     )
     
 
@@ -230,11 +236,4 @@ def create_alarm_disk_dev(instanceid,v,dev):
             Threshold=30.0,
             ComparisonOperator='LessThanOrEqualToThreshold'
             )
-        
-
-
-
-
-
     
-
