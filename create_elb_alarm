@@ -1,0 +1,130 @@
+
+import boto3
+
+cw = boto3.client('cloudwatch')
+
+region = 'us-east-1'
+
+# SNS Topic
+ec2_sns = 'arn do sns'
+
+
+
+def lambda_handler(event, context):
+
+    create_alarm_elb('internal-EventServerELB')
+
+        
+def create_alarm_elb(elb):
+
+    cw.put_metric_alarm(
+          AlarmName="Error ELB-backend-4xx %s" % (elb),
+          AlarmDescription='Error ELB-backend-4xx"   >= 50  for 3+ Minutes',
+          ActionsEnabled=True,
+          AlarmActions=[
+              ec2_sns
+          ],
+          MetricName='HTTPCode_Backend_4XX',
+          Namespace='AWS/ELB',
+          Statistic='Sum',
+          Dimensions=[
+              {
+                  'Name': 'LoadBalancerName',
+                  'Value': elb
+              },
+          ],
+          Period=60,
+          EvaluationPeriods=3,# tempo em minutos
+          Threshold=50,
+          ComparisonOperator='GreaterThanOrEqualToThreshold'
+      )
+
+    cw.put_metric_alarm(
+        AlarmName="Error HTTPCode_Backend_5XX %s" % (elb),
+        AlarmDescription='Error HTTPCode_Backend_5XX"   >= 50  for 3+ Minutes',
+        ActionsEnabled=True,
+        AlarmActions=[
+            ec2_sns
+        ],
+        MetricName='HTTPCode_Backend_5XX',
+        Namespace='AWS/ELB',
+        Statistic='Sum',
+        Dimensions=[
+            {
+                'Name': 'LoadBalancerName',
+                'Value': elb
+            },
+        ],
+        Period=60,
+        EvaluationPeriods=3,# tempo em minutos
+        Threshold=3,
+        ComparisonOperator='GreaterThanOrEqualToThreshold'
+    )
+
+    cw.put_metric_alarm(
+          AlarmName="Error HTTPCode_ELB_5XX %s" % (elb),
+          AlarmDescription='Error HTTPCode_ELB_5XX"   >= 50  for 3+ Minutes',
+          ActionsEnabled=True,
+          AlarmActions=[
+              ec2_sns
+          ],
+          MetricName='HTTPCode_ELB_5XX',
+          Namespace='AWS/ELB',
+          Statistic='Sum',
+          Dimensions=[
+              {
+                  'Name': 'LoadBalancerName',
+                  'Value': elb
+              },
+          ],
+          Period=60,
+          EvaluationPeriods=3,# tempo em minutos
+          Threshold=3,
+          ComparisonOperator='GreaterThanOrEqualToThreshold'
+      )
+
+    cw.put_metric_alarm(
+        AlarmName="Latency %s" % (elb),
+        AlarmDescription='Latency"   >= 50  for 3+ Minutes',
+        ActionsEnabled=True,
+        AlarmActions=[
+            ec2_sns
+        ],
+        MetricName='Latency',
+        Namespace='AWS/ELB',
+        Statistic='Average',
+        Dimensions=[
+            {
+                'Name': 'LoadBalancerName',
+                'Value': elb
+            },
+        ],
+        Period=60,
+        EvaluationPeriods=3,# tempo em minutos
+        Threshold=1,
+        ComparisonOperator='GreaterThanOrEqualToThreshold'
+    )
+
+
+
+    cw.put_metric_alarm(
+          AlarmName="UnHealthyHostCount %s" % (elb),
+          AlarmDescription='UnHealthyHostCount"   >= 50  for 3+ Minutes',
+          ActionsEnabled=True,
+          AlarmActions=[
+              ec2_sns
+          ],
+          MetricName='UnHealthyHostCount',
+          Namespace='AWS/ELB',
+          Statistic='Maximum',
+          Dimensions=[
+              {
+                  'Name': 'LoadBalancerName',
+                  'Value': elb
+              },
+          ],
+          Period=60,
+          EvaluationPeriods=3,# tempo em minutos
+          Threshold=1,
+          ComparisonOperator='GreaterThanOrEqualToThreshold'
+    )
