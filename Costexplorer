@@ -1,0 +1,36 @@
+import boto3
+from datetime import datetime, timedelta
+
+# Create a Cost Explorer client
+client = boto3.client('ce', region_name='us-east-1')
+
+# Define the time period for the query
+end_date = datetime.today().strftime('%Y-%m-%d')
+start_date = (datetime.today() - timedelta(days=30)).strftime('%Y-%m-%d')
+
+# Define the filter for the specific resource
+filters = {
+    'Dimensions': {
+        'Key': 'RESOURCE_ID',
+        'Values': [
+            'your-resource-id-here'
+        ]
+    }
+}
+
+# Call the get_cost_and_usage method
+response = client.get_cost_and_usage(
+    TimePeriod={'Start': start_date, 'End': end_date},
+    Granularity='DAILY',
+    Metrics=['UnblendedCost'],
+    GroupBy=[
+        {
+            'Type': 'DIMENSION',
+            'Key': 'SERVICE'
+        }
+    ],
+    Filter=filters
+)
+
+# Process and print the response
+print(response)
