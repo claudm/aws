@@ -1,0 +1,11 @@
+agent_space_id: "pentest-demo-space"
+region: "us-east-1"
+jobs:
+  - job_id: "job-demo-frontend"
+    title: "OWASP Top 10 - Web Vulnerable App"
+    target_uri: "http://vulnerable-app.pentest.svc"
+    priority: "HIGH"
+  - job_id: "job-auth-service"
+    title: "Scan Internal Auth Service API"
+    target_uri: "http://auth.pentest.svc:8080"
+    priority: "CRITICAL"

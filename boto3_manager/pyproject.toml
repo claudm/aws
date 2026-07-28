@@ -1,0 +1,39 @@
+[build-system]
+requires = ["setuptools>=61.0", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "aws-security-agent-suite"
+version = "1.0.0"
+description = "AWS Security Agent DevSecOps Suite com Arquitetura Hexagonal (Blue/Red Team, GitOps & Compliance)"
+readme = "README.md"
+authors = [
+    { name = "DevSecOps Engineering Team", email = "security-agent@demo.aws" }
+]
+classifiers = [
+    "Programming Language :: Python :: 3",
+    "Topic :: Security",
+    "Topic :: Software Development :: Libraries :: Application Frameworks",
+]
+requires-python = ">=3.8"
+dependencies = [
+    "boto3>=1.28.0",
+    "click>=8.0.0",
+    "colorama>=0.4.6",
+    "pyyaml>=6.0"
+]
+
+[project.scripts]
+aws-security-agent = "main:cli"
+
+[tool.setuptools]
+py-modules = ["main"]
+include-package-data = true
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["domain*", "ports*", "service*", "adapters*"]
+exclude = ["tests*", "dist*", "build*"]
+
+[tool.setuptools.package-data]
+"*" = ["*.yaml", "*.yml", "*.json"]

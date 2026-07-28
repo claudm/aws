@@ -1,0 +1,86 @@
+Metadata-Version: 2.4
+Name: aws-security-agent-suite
+Version: 1.0.0
+Summary: AWS Security Agent DevSecOps Suite com Arquitetura Hexagonal (Blue/Red Team, GitOps & Compliance)
+Author-email: DevSecOps Engineering Team <security-agent@demo.aws>
+Classifier: Programming Language :: Python :: 3
+Classifier: Topic :: Security
+Classifier: Topic :: Software Development :: Libraries :: Application Frameworks
+Requires-Python: >=3.8
+Description-Content-Type: text/markdown
+Requires-Dist: boto3>=1.28.0
+Requires-Dist: click>=8.0.0
+Requires-Dist: colorama>=0.4.6
+Requires-Dist: pyyaml>=6.0
+
+# AWS Security Agent DevSecOps Suite - Arquitetura Hexagonal & Click CLI
+
+Este diretório implementa uma **Suite DevSecOps Completa** na ponta da **Arquitetura Hexagonal (Ports & Adapters)** operando com uma interface de console estilizada em **Click CLI (Command Line Interface Creation Kit)**!
+
+Cobrimos dinamicamente os 3 pilares da plataforma **AWS Security Agent**:
+1. **Blue Team & Arquitetura (Demo 1):** Análise de *Design Reviews* sobre especificações antes mesmo do deploy!
+2. **GitOps & Code Review (Demo 2):** Auditoria em Pull Requests abrindo no **GitHub** com código Terraform.
+3. **Red Team & Execução Ofensiva (Demo 3):** Baterias de *Pen-Testing*, exploits comprovados e monitoramento ao vivo.
+4. **Governança:** Tabela detalhada das 10 leis de proteção AWS (KMS, CloudTrail, IAM).
+
+---
+
+## 🚀 Guia Prático de Comandos via Click CLI
+
+Esqueça o uso complexo de flags! Com a nova interface **Click**, você interage com seu agente como se estivesse executando sub-comandos elegantes no estilo do Git ou da própria AWS CLI!
+
+Abra o terminal dentro da pasta:
+```bash
+cd /d/aws/sample-security-agent-demo/pen-test/boto3_manager
+```
+
+### 📋 Painel Geral (Dashboard DevSecOps)
+Apresenta no console os alvos de teste, status remotos e regras ativas:
+```bash
+python main.py dashboard
+```
+*(Você pode alterar a origem dos alvos usando a opção `-s`: `python main.py -s terraform dashboard`)*
+
+### 🎯 1. Red Team: Pen-Testing Automatizado (Demo 3)
+Dispara na nuvem AWS os exércitos de escaneamento contra as rotas provisionadas:
+```bash
+python main.py run
+```
+
+### 📐 2. Blue Team: Design Reviews & Documentação (Demo 1)
+Inspeciona diagramas arquiteturais e relata falhas conceituais na sua estrutura:
+```bash
+python main.py design-review
+```
+
+### 🔍 3. DevSecOps: Inspeção de Pull Requests no GitHub (Demo 2)
+Verifica pendências em auditoria de segurança diretamente nos PRs gerados com código IaC no Github:
+```bash
+python main.py github-pr
+```
+
+### 🛡️ 4. Governança: Mandatos de Compliance AWS (Security Requirements)
+Exibe a tabela formatada e colorida dos 10 domínios sob custódia corporativa do agente:
+```bash
+python main.py compliance
+```
+
+### 🌐 5. Verificação IaC de Domínios do Terraform
+Consulte as saídas oficiais da stack Terraform e verifique seu challenge na nuvem da AWS com um clique:
+```bash
+python main.py verify-domain
+```
+
+### 🛑 6. Circuit Breaker (Emergência): Abortar Job em Execução
+Em eventual risco de saturação, aborte imediatamente qualquer bateria no servidor:
+```bash
+python main.py stop -j job-ofensivo-pt-100
+```
+
+---
+
+## ⚙️ Opções Globais
+Qualquer subcomando aceita como opções preliminares de bootstrap na Arquitetura Hexagonal:
+- `-s, --source [yaml|terraform|hybrid]`: Alterna a porta secundária de leitura de especificações (Padrão: `hybrid`).
+- `--cloud`: O Boto3 direciona as solicitações para os endpoints reais em produção na AWS Cloud (ignora o emulador da porta 4566).
+- `--help`: Apresenta o guia do painel de ajuda e autocompletar construído nativamente com Click!

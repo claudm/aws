@@ -1,0 +1,6 @@
+include README.md
+include jobs_config.yaml
+recursive-include domain *
+recursive-include ports *
+recursive-include service *
+recursive-include adapters *
