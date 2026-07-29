@@ -168,3 +168,4 @@ if __name__ == "__main__":
         print(f"[+] Total de jobs encontrados na AWS para o espaço '{space_id}': {len(jobs)}")
     except Exception as e:
         print(f"[!] Aviso ao contatar serviço na porta 4566: {e}")
+
