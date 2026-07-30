@@ -1,0 +1,6 @@
+agent_space_id: 644fbe40-0802-4ad0-abb5-27f243ea864b
+jobs:
+- job_id: j1
+  priority: CRITICAL
+  target_uri: http://portal.test
+  title: Portal Web

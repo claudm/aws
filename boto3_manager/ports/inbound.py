@@ -1,6 +1,6 @@
 from typing import Protocol, List, Dict, Any, Optional
 from domain.entities import (
-    JobSpecification, PentestExecutionResult, SecurityRequirement,
+    JobSpecification, PentestExecutionResult, SecurityRequirement, AgentSpace,
     DesignReviewResult, CodeReviewResult, TargetDomainVerification
 )
 
@@ -12,6 +12,11 @@ class PentestUseCasePort(Protocol):
     Contrato mestre da suite de segurança (Blue Team, Red Team & DevSecOps).
     Expõe aos adaptadores (CLI, APIs REST) todas as ações operacionais orquestradas.
     """
+    # --- AGENT SPACES ---
+    def list_agent_spaces(self) -> List[AgentSpace]:
+        """Lista os Agent Spaces disponíveis na conta AWS."""
+        ...
+
     # --- PAINEL & CONEXÕES BASIC ---
     def list_configured_jobs(self) -> List[JobSpecification]:
         """Lista especificações dos testes (carregadas via Terraform ou YAML)."""

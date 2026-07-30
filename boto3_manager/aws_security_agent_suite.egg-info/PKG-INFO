@@ -29,15 +29,21 @@ Cobrimos dinamicamente os 3 pilares da plataforma **AWS Security Agent**:
 
 Esqueça o uso complexo de flags! Com a nova interface **Click**, você interage com seu agente como se estivesse executando sub-comandos elegantes no estilo do Git ou da própria AWS CLI!
 
-Abra o terminal dentro da pasta:
+### 📦 Instalação como Pacote / Comando Nativo via `pip`
+Para registrar o comando `aws-security-agent` em todo o seu sistema (sem precisar chamar `python main.py`), instale o pacote via pip dentro desta pasta:
 ```bash
 cd /d/aws/sample-security-agent-demo/pen-test/boto3_manager
+pip install -e .
 ```
+*(Também foi gerado um pacote binário Wheel standalone na pasta `dist/` para distribuição: `aws_security_agent_suite-1.0.0-py3-none-any.whl`)*
+
+Agora você pode acionar seu agente diretamente do seu terminal de **qualquer pasta** no Windows:
 
 ### 📋 Painel Geral (Dashboard DevSecOps)
 Apresenta no console os alvos de teste, status remotos e regras ativas:
 ```bash
-python main.py dashboard
+aws-security-agent dashboard
+# (ou python main.py dashboard)
 ```
 *(Você pode alterar a origem dos alvos usando a opção `-s`: `python main.py -s terraform dashboard`)*
 

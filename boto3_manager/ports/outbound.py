@@ -1,6 +1,6 @@
 from typing import Protocol, List, Dict, Any, Optional
 from domain.entities import (
-    JobSpecification, Finding, JobStatus,
+    JobSpecification, Finding, JobStatus, AgentSpace,
     SecurityRequirement, DesignReviewResult, CodeReviewResult, TargetDomainVerification
 )
 
@@ -30,6 +30,13 @@ class SecurityAgentPort(Protocol):
     Interface pura (Protocol) que encapsula TODAS as funcionalidades da nuvem AWS (Boto3/REST).
     Cobre Pen-Test (Demo 3), Design Review (Demo 1), Code Review GitOps (Demo 2) e Governança!
     """
+    # ---------------------------------------------------------
+    # 0. AGENT SPACES (ESPAÇOS DE TRABALHO)
+    # ---------------------------------------------------------
+    def list_agent_spaces(self) -> List[AgentSpace]:
+        """Lista todos os Agent Spaces existentes na conta."""
+        ...
+
     # ---------------------------------------------------------
     # 1. PEN-TESTING & EXECUÇÃO OFENSIVA (DEMO 3 - RED TEAM)
     # ---------------------------------------------------------

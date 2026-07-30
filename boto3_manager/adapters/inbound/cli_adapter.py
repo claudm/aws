@@ -176,3 +176,123 @@ class CommandLineAdapter:
     def emergency_halt(self, job_id: str):
         self.use_case.emergency_stop_job(job_id)
         click.secho(f"\n[CIRCUIT BREAKER] Parada engatilhada no cluster para {job_id}.", fg="bright_red", bold=True)
+
+    # =========================================================================
+    # AGENT SPACES, CATÁLOGOS E AÇÕES PONTUAIS
+    # =========================================================================
+    def print_agent_spaces_table(self):
+        """Tabela com todos os Agent Spaces da conta."""
+        spaces = self.use_case.list_agent_spaces()
+        click.echo("")
+        click.secho("=" * 78, fg="bright_blue")
+        click.secho("                    AGENT SPACES DISPONÍVEIS NA CONTA AWS", fg="bright_cyan", bold=True)
+        click.secho("=" * 78, fg="bright_blue")
+
+        if not spaces:
+            click.secho("[i] Nenhum Agent Space encontrado nesta conta/endpoint.", fg="yellow")
+            return
+
+        header = f" {'AGENT SPACE ID':<38} | {'CODE REVIEW':<11} | {'NOME'}"
+        click.secho(header, fg="bright_white", bold=True)
+        click.secho("-" * 78, fg="bright_blue")
+
+        for space in spaces:
+            cr = click.style("ATIVO      ", fg="bright_green", bold=True) if space.code_review_enabled \
+                else click.style("INATIVO    ", fg="bright_black")
+            click.echo(f" {click.style(space.agent_space_id, fg='green'):<38} | {cr} | "
+                       + click.style(space.name, fg="bright_white", bold=True))
+
+            if space.description:
+                click.secho(f"   {space.description}", fg="bright_black")
+            if space.target_domain_ids:
+                click.echo("   Domínios: " + click.style(", ".join(space.target_domain_ids), fg="cyan"))
+            if space.kms_key_id:
+                click.echo("   KMS     : " + click.style(space.kms_key_id, fg="yellow"))
+
+        click.secho("=" * 78, fg="bright_blue")
+        click.secho(f"Total: {len(spaces)} Agent Space(s).", fg="bright_white", bold=True)
+
+    def print_configured_jobs(self):
+        """Escopo de alvos declarado no Terraform/YAML."""
+        jobs = self.use_case.list_configured_jobs()
+        click.echo("")
+        click.secho("=" * 78, fg="bright_yellow")
+        click.secho("               ESCOPO DE ALVOS CONFIGURADOS (TERRAFORM / YAML)", fg="bright_yellow", bold=True)
+        click.secho("=" * 78, fg="bright_yellow")
+
+        if not jobs:
+            click.secho("[i] Nenhum alvo configurado na fonte selecionada.", fg="yellow")
+            return
+
+        for job in jobs:
+            prioridade = click.style(f"[{job.priority:^8}]", fg="magenta" if job.priority == "CRITICAL" else "yellow", bold=True)
+            click.echo(f" {prioridade} {job.job_id:<16} {job.title:<34} -> " + click.style(job.target_uri, fg="bright_cyan"))
+
+        click.secho("-" * 78, fg="bright_yellow")
+        click.secho(f"Total: {len(jobs)} alvo(s) mapeado(s).", fg="bright_white", bold=True)
+
+    def print_remote_jobs(self):
+        """Histórico de Jobs já executados no Agent Space."""
+        jobs = self.use_case.list_remote_agent_jobs()
+        click.echo("")
+        click.secho("=" * 78, fg="bright_magenta")
+        click.secho("             HISTÓRICO DE JOBS EXECUTADOS NO AGENT SPACE (AWS)", fg="bright_white", bold=True)
+        click.secho("=" * 78, fg="bright_magenta")
+
+        if not jobs:
+            click.secho("[i] Nenhum job registrado remotamente para este Agent Space.", fg="yellow")
+            return
+
+        header = f" {'JOB ID':<38} | {'STATUS':<12} | {'TÍTULO'}"
+        click.secho(header, fg="bright_white", bold=True)
+        click.secho("-" * 78, fg="bright_magenta")
+
+        for job in jobs:
+            status = str(job.get("status", "-"))
+            cor = "bright_green" if status == "COMPLETED" else "yellow" if status == "IN_PROGRESS" else "red"
+            click.echo(f" {job.get('pentestJobId', '-'):<38} | "
+                       + click.style(f"{status:<12}", fg=cor, bold=True) + f" | {job.get('title', '')}")
+
+        click.secho("-" * 78, fg="bright_magenta")
+        click.secho(f"Total: {len(jobs)} job(s).", fg="bright_white", bold=True)
+
+    def print_past_design_reviews(self):
+        """Design Reviews (Threat Models) já registrados no Agent Space."""
+        reviews = self.use_case.list_past_design_reviews()
+        click.echo("")
+        click.secho("=" * 78, fg="cyan")
+        click.secho("             DESIGN REVIEWS REGISTRADOS NO AGENT SPACE (DEMO 1)", fg="bright_cyan", bold=True)
+        click.secho("=" * 78, fg="cyan")
+
+        if not reviews:
+            click.secho("[i] Nenhum Design Review registrado neste Agent Space.", fg="yellow")
+            return
+
+        header = f" {'REVIEW ID':<38} | {'STATUS':<12} | {'TÍTULO'}"
+        click.secho(header, fg="bright_white", bold=True)
+        click.secho("-" * 78, fg="cyan")
+
+        for rev in reviews:
+            cor = "bright_green" if rev.status.is_terminal() else "yellow"
+            click.echo(f" {click.style(rev.review_id, fg='green'):<38} | "
+                       + click.style(f"{rev.status.value:<12}", fg=cor, bold=True) + f" | {rev.title}")
+
+        click.secho("-" * 78, fg="cyan")
+        click.secho(f"Total: {len(reviews)} revisão(ões).", fg="bright_white", bold=True)
+
+    def add_compliance_rule(self, title: str, domain: str, description: str):
+        """Cadastra uma regra de compliance própria da organização."""
+        requirement_id = self.use_case.add_custom_compliance_rule(title, domain, description)
+        click.echo("")
+        click.secho(f"[SUCESSO] Regra corporativa registrada no motor de compliance da AWS.", fg="bright_green", bold=True)
+        click.echo("  Identificador: " + click.style(requirement_id, fg="green", bold=True))
+        click.echo("  Domínio      : " + click.style(domain, fg="cyan"))
+        click.echo("  Descrição    : " + description)
+
+    def run_single_scan(self, target_uri: str, title: str):
+        """Dispara um Pen-Test pontual contra um alvo informado na linha de comando."""
+        click.echo("")
+        click.secho(f"[*] PEN-TEST PONTUAL CONTRA '{target_uri}'", fg="bright_red", bold=True, reverse=True)
+        click.secho("-" * 78, fg="red")
+        resultado = self.use_case.execute_pentest_for_target(target_uri, title)
+        self.render_execution_report([resultado])

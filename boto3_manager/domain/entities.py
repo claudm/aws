@@ -83,6 +83,17 @@ class PentestExecutionResult:
 # =====================================================================
 
 @dataclass
+class AgentSpace:
+    """Representa um Agent Space: o espaço de trabalho que agrupa pentests, revisões e achados."""
+    agent_space_id: str
+    name: str
+    description: Optional[str] = None
+    target_domain_ids: List[str] = field(default_factory=list)
+    kms_key_id: Optional[str] = None
+    code_review_enabled: bool = False
+
+
+@dataclass
 class SecurityRequirement:
     """Representa uma política de compliance ou requisito de segurança (Ex: KMS obrigatório, CloudTrail, IAM)."""
     requirement_id: str

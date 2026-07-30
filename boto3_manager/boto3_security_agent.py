@@ -13,7 +13,7 @@ from botocore.exceptions import ClientError
 # ==========================================
 AGENT_SPACE_ID = "pentest-demo-space"
 TARGET_URL = "http://vulnerable-app.pentest.svc"
-ENDPOINT_URL = "http://localhost:4566"  # Utilize None se estiver acessando a API real da AWS no cluster
+ENDPOINT_URL = "http://kumo.127.0.0.1.nip.io"  # Emulador Kumo; use None para a API real da AWS no cluster
 REGION_NAME = "us-east-1"
 POLLING_INTERVAL_SEC = 5
 MAX_RETRIES = 60  # Timeout máximo de ~5 minutos
@@ -25,7 +25,7 @@ def main():
     # Inicializa o cliente boto3.
     # Nota: Caso esteja usando um ambiente simulado (ex: kumo / LocalStack), passamos o endpoint_url customizado.
     client = boto3.client(
-        "security-agent",
+        "securityagent",
         region_name=REGION_NAME,
         endpoint_url=ENDPOINT_URL
     )

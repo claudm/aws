@@ -53,7 +53,9 @@ class TerraformJobConfigSourceAdapter(JobConfigSourcePort):
         if isinstance(props_output, dict) and "AgentSpaceId" in props_output:
             return str(props_output["AgentSpaceId"])
 
-        return "pentest-demo-space-from-terraform"
+        # A stack não expôs nenhum Agent Space: melhor dizer que não sabe do que
+        # devolver um id inventado que não existe na conta.
+        return ""
 
     def get_service_role_arn(self) -> Optional[str]:
         return self.outputs.get("service_role_arn", {}).get("value")
@@ -76,18 +78,18 @@ class TerraformJobConfigSourceAdapter(JobConfigSourcePort):
                 "domain_name": details.get("DomainName", str(domain_id)) if isinstance(details, dict) else str(domain_id),
                 "token": details.get("VerificationToken", "aws-security-agent-challenge-tf-token") if isinstance(details, dict) else "aws-security-agent-challenge-tf-token"
             }
-        # Fallback ilustrativo caso o output não tenha domínio configurado
-        return {
-            "domain_id": "tf-dom-vulnerable-svc",
-            "domain_name": "vulnerable-app.pentest.svc",
-            "token": "aws-verification-token-from-terraform"
-        }
+        # Sem domínio nos outputs não há o que verificar; quem chama trata None.
+        return None
 
     def fetch_job_specifications(self) -> List[JobSpecification]:
         space_id = self.get_agent_space_id()
         domain_info = self.get_target_domain_details()
-        
-        target_uri = f"http://{domain_info['domain_name']}" if domain_info else "http://vulnerable-app.pentest.svc"
+
+        # Sem domínio provisionado, a stack não criou alvo nenhum.
+        if not domain_info:
+            return []
+
+        target_uri = f"http://{domain_info['domain_name']}"
 
         spec = JobSpecification(
             job_id="tf-stack-pentest-job",
@@ -107,32 +109,49 @@ class HybridTerraformYamlAdapter(JobConfigSourcePort):
     """
     def __init__(self, yaml_filepath: str, terraform_dir: str = r"d:\aws\sample-security-agent-demo\terraform-aws-security-agent"):
         from adapters.outbound.yaml_adapter import YamlJobConfigSourceAdapter
-        self.yaml_adapter = YamlJobConfigSourceAdapter(yaml_filepath)
-        
+
+        # As duas fontes são opcionais: a wheel instalada não leva o
+        # jobs_config.yaml, e uma máquina que só consulta não tem a stack do
+        # Terraform. Sem nenhuma delas o adaptador continua válido e apenas não
+        # sabe qual Agent Space usar — aí quem consome busca os ids na conta.
+        self.yaml_adapter: Optional[Any] = None
+        try:
+            self.yaml_adapter = YamlJobConfigSourceAdapter(yaml_filepath)
+        except Exception as exc:
+            print(f"[Aviso YAML] Catálogo local indisponível ({exc}).")
+
+        self.tf_adapter: Optional[TerraformJobConfigSourceAdapter] = None
         try:
             self.tf_adapter = TerraformJobConfigSourceAdapter(terraform_dir)
-            self._tf_available = True
         except Exception as exc:
-            print(f"[Aviso IaC] Não foi possível carregar saídas ao vivo do Terraform ({exc}). Usando fallback do YAML.")
-            self._tf_available = False
+            print(f"[Aviso IaC] Saídas do Terraform indisponíveis ({exc}).")
 
     def get_agent_space_id(self) -> str:
-        if self._tf_available:
-            return self.tf_adapter.get_agent_space_id()
-        return self.yaml_adapter.get_agent_space_id()
+        """Agent Space do Terraform; senão o do YAML; senão vazio (não sei qual)."""
+        for fonte in (self.tf_adapter, self.yaml_adapter):
+            if fonte is not None:
+                space_id = fonte.get_agent_space_id()
+                if space_id:
+                    return space_id
+        return ""
 
     def get_target_domain_details(self) -> Optional[Dict[str, Any]]:
-        if self._tf_available:
+        if self.tf_adapter is not None:
             return self.tf_adapter.get_target_domain_details()
-        return {
-            "domain_id": "yaml-domain-01",
-            "domain_name": "vulnerable-app.pentest.svc",
-            "token": "verification-token-from-yaml-environment"
-        }
+        return None
+
+    def get_service_role_arn(self) -> Optional[str]:
+        return self.tf_adapter.get_service_role_arn() if self.tf_adapter else None
 
     def fetch_job_specifications(self) -> List[JobSpecification]:
-        yaml_specs = self.yaml_adapter.fetch_job_specifications()
+        specs: List[JobSpecification] = []
+        if self.yaml_adapter is not None:
+            specs = self.yaml_adapter.fetch_job_specifications()
+        elif self.tf_adapter is not None:
+            specs = self.tf_adapter.fetch_job_specifications()
+
         real_space_id = self.get_agent_space_id()
-        for spec in yaml_specs:
-            spec.agent_space_id = real_space_id
-        return yaml_specs
+        if real_space_id:
+            for spec in specs:
+                spec.agent_space_id = real_space_id
+        return specs

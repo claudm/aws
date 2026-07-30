@@ -27,7 +27,12 @@ class YamlJobConfigSourceAdapter(JobConfigSourcePort):
                 raise JobConfigurationError(f"Erro ao processar sintaxe do YAML no arquivo '{self.filepath}': {exc}")
 
     def get_agent_space_id(self) -> str:
-        return self._data.get("agent_space_id", "pentest-demo-space")
+        """
+        Agent Space declarado no YAML. Devolve string vazia quando o arquivo não
+        declara nenhum: quem consome trata isso como 'não sei qual', e não como
+        um espaço chamado 'pentest-demo-space' que provavelmente não existe.
+        """
+        return str(self._data.get("agent_space_id") or "")
 
     def fetch_job_specifications(self) -> List[JobSpecification]:
         raw_jobs = self._data.get("jobs", [])
