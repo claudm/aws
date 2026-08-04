@@ -676,7 +676,7 @@ class Boto3SecurityAgentAdapter(SecurityAgentPort):
                     code_review_enabled=bool(
                         settings.get("controlsScanning") or settings.get("generalPurposeScanning")
                     ),
-                    role_arn=space.get("roleArn")
+                    role_arn=space.get("awsResources", {}).get("iamRoles", [None])[0] if space.get("awsResources", {}).get("iamRoles") else None
                 ))
 
             return resultado
@@ -690,7 +690,7 @@ class Boto3SecurityAgentAdapter(SecurityAgentPort):
             if description:
                 params["description"] = description
             if role_arn:
-                params["roleArn"] = role_arn
+                params["awsResources"] = {"iamRoles": [role_arn]}
             response = self.client.create_agent_space(**params)
             return str(response["agentSpaceId"])
         except (ClientError, BotoCoreError) as exc:
