@@ -140,6 +140,7 @@ class AgentSpace:
     target_domain_ids: List[str] = field(default_factory=list)
     kms_key_id: Optional[str] = None
     code_review_enabled: bool = False
+    role_arn: Optional[str] = None
 
 
 @dataclass
@@ -196,6 +197,10 @@ class PentestUseCasePort(Protocol):
     # --- AGENT SPACES ---
     def list_agent_spaces(self) -> List[AgentSpace]:
         """Lista os Agent Spaces disponíveis na conta AWS."""
+        ...
+
+    def create_agent_space(self, name: str, description: Optional[str] = None, role_arn: Optional[str] = None) -> str:
+        """Cria um Agent Space na conta e devolve o novo id."""
         ...
 
     # --- PAINEL & CONEXÕES BASIC ---
@@ -283,6 +288,10 @@ class SecurityAgentPort(Protocol):
     # ---------------------------------------------------------
     def list_agent_spaces(self) -> List[AgentSpace]:
         """Lista todos os Agent Spaces existentes na conta."""
+        ...
+
+    def create_agent_space(self, name: str, description: Optional[str] = None, role_arn: Optional[str] = None) -> str:
+        """Cria um Agent Space na conta e devolve o novo id."""
         ...
 
     # ---------------------------------------------------------
@@ -666,19 +675,22 @@ class Boto3SecurityAgentAdapter(SecurityAgentPort):
                     kms_key_id=space.get("kmsKeyId"),
                     code_review_enabled=bool(
                         settings.get("controlsScanning") or settings.get("generalPurposeScanning")
-                    )
+                    ),
+                    role_arn=space.get("roleArn")
                 ))
 
             return resultado
         except (ClientError, BotoCoreError) as exc:
             raise SecurityAgentConnectionError(f"Erro ao listar Agent Spaces: {exc}")
 
-    def create_agent_space(self, name: str, description: Optional[str] = None) -> str:
+    def create_agent_space(self, name: str, description: Optional[str] = None, role_arn: Optional[str] = None) -> str:
         """Cria um Agent Space (só 'name' é obrigatório) e devolve o novo id."""
         try:
             params: Dict[str, Any] = {"name": name}
             if description:
                 params["description"] = description
+            if role_arn:
+                params["roleArn"] = role_arn
             response = self.client.create_agent_space(**params)
             return str(response["agentSpaceId"])
         except (ClientError, BotoCoreError) as exc:
@@ -1258,10 +1270,10 @@ class PentestService(PentestUseCasePort):
         """Lista os Agent Spaces existentes na conta."""
         return self.security_agent.list_agent_spaces()
 
-    def create_agent_space(self, name: str, description: Optional[str] = None) -> str:
+    def create_agent_space(self, name: str, description: Optional[str] = None, role_arn: Optional[str] = None) -> str:
         """Cria um Agent Space na conta e devolve o novo id."""
         print(f"    [Agent Space] Criando Agent Space '{name}'...")
-        space_id = self.security_agent.create_agent_space(name, description)
+        space_id = self.security_agent.create_agent_space(name, description, role_arn)
         print(f"    [Agent Space] Agent Space criado. ID: {space_id}")
         return space_id
 
@@ -1616,6 +1628,8 @@ class CommandLineAdapter:
                 click.echo("   Domínios: " + click.style(", ".join(space.target_domain_ids), fg="cyan"))
             if space.kms_key_id:
                 click.echo("   KMS     : " + click.style(space.kms_key_id, fg="yellow"))
+            if space.role_arn:
+                click.echo("   Role ARN: " + click.style(space.role_arn, fg="magenta"))
 
         click.secho("=" * 78, fg="bright_blue")
         click.secho(f"Total: {len(spaces)} Agent Space(s).", fg="bright_white", bold=True)
@@ -1697,18 +1711,20 @@ class CommandLineAdapter:
         click.echo("  Domínio      : " + click.style(domain, fg="cyan"))
         click.echo("  Descrição    : " + description)
 
-    def create_agent_space(self, name: str, description: str = None):
+    def create_agent_space(self, name: str, description: str = None, role_arn: str = None):
         """Cria um Agent Space na conta AWS e exibe o novo Agent Space ID."""
         click.echo("")
         click.secho(f"[*] CRIANDO AGENT SPACE '{name}'", fg="bright_blue", bold=True, reverse=True)
         click.secho("-" * 78, fg="blue")
-        space_id = self.use_case.create_agent_space(name, description)
+        space_id = self.use_case.create_agent_space(name, description, role_arn)
         click.echo("")
         click.secho(f"[SUCESSO] Agent Space criado na conta AWS.", fg="bright_green", bold=True)
         click.echo("  Agent Space ID: " + click.style(space_id, fg="green", bold=True))
         click.echo("  Nome          : " + click.style(name, fg="bright_cyan"))
         if description:
             click.echo("  Descrição     : " + click.style(description, fg="yellow"))
+        if role_arn:
+            click.echo("  Role ARN      : " + click.style(role_arn, fg="magenta"))
         click.secho("  Use-o nas próximas ações com: ", nl=False, fg="bright_black")
         click.secho(f"--agent-space {space_id}", fg="bright_black", italic=True)
 
@@ -1885,11 +1901,12 @@ def cmd_agent_spaces(ctx):
 @cli.command("create-agent-space", short_help="[ESPAÇOS] Cria um novo Agent Space na conta AWS")
 @click.option("--name", "-n", required=True, help="Nome do Agent Space a criar")
 @click.option("--description", "-D", default=None, help="Descrição opcional do Agent Space")
+@click.option("--role-arn", "-R", default=None, help="Role ARN a ser associada ao Agent Space")
 @click.pass_context
-def cmd_create_agent_space(ctx, name, description):
+def cmd_create_agent_space(ctx, name, description, role_arn):
     """Cria um Agent Space via CreateAgentSpace e devolve o Agent Space ID para usar com --agent-space."""
     adapter = ctx.obj["adapter"]
-    adapter.create_agent_space(name=name, description=description)
+    adapter.create_agent_space(name=name, description=description, role_arn=role_arn)
 
 
 @cli.command("jobs", short_help="[CATÁLOGO] Lista os alvos configurados no Terraform/YAML")
