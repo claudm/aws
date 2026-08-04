@@ -213,7 +213,11 @@ class PentestUseCasePort(Protocol):
         ...
 
     # --- EXECUÇÃO DE PEN-TEST (DEMO 3) ---
-    def execute_pentest_for_target(self, target_uri: str, title: str) -> PentestExecutionResult:
+    def create_pentest_target(self, target_uri: str, title: str, service_role: Optional[str] = None) -> str:
+        """Registra o alvo (CreatePentest) e devolve o Pentest ID, sem disparar o Job de scan."""
+        ...
+
+    def execute_pentest_for_target(self, target_uri: str, title: str, service_role: Optional[str] = None) -> PentestExecutionResult:
         """Executa bateria ponta a ponta (Register -> Scan -> Polling -> Report)."""
         ...
 
@@ -297,7 +301,7 @@ class SecurityAgentPort(Protocol):
     # ---------------------------------------------------------
     # 1. PEN-TESTING & EXECUÇÃO OFENSIVA (DEMO 3 - RED TEAM)
     # ---------------------------------------------------------
-    def register_target_pentest(self, space_id: str, title: str, target_uri: str) -> str:
+    def register_target_pentest(self, space_id: str, title: str, target_uri: str, service_role: Optional[str] = None) -> str:
         """Registra o alvo no Agent Space e retorna o Pentest ID."""
         ...
 
@@ -611,38 +615,20 @@ class Boto3SecurityAgentAdapter(SecurityAgentPort):
     def __init__(
         self,
         region_name: str = "us-east-1",
-        endpoint_url: Optional[str] = None,
         service_role: Optional[str] = None,
         profile_name: Optional[str] = None,
     ):
         """
         :param region_name: Região AWS.
-        :param endpoint_url: None para a AWS real; URL do emulador (kumo) caso
-            contrário.
         :param service_role: ARN exigido por CreateThreatModel (Design Review).
         :param profile_name: Perfil do ~/.aws/credentials a usar na AWS real.
         """
-        self.endpoint_url = endpoint_url
-        # CreateThreatModel exige serviceRole. Vem do output do Terraform
-        # (service_role_arn) ou da variável de ambiente.
         self.service_role = service_role or os.environ.get("SECURITY_AGENT_SERVICE_ROLE")
 
         session = boto3.Session(profile_name=profile_name) if profile_name else boto3.Session()
-        client_kwargs: Dict[str, Any] = {"region_name": region_name, "endpoint_url": endpoint_url}
+        client_kwargs: Dict[str, Any] = {"region_name": region_name}
 
-        if endpoint_url:
-            # Contra um emulador não há credencial real para resolver, e o
-            # botocore recusa assinar sem nenhuma (NoCredentialsError). Só nesse
-            # caso entram credenciais de fachada.
-            if session.get_credentials() is None:
-                client_kwargs["aws_access_key_id"] = "kumo"
-                client_kwargs["aws_secret_access_key"] = "kumo"
-        else:
-            # Sem endpoint explícito o destino é a AWS real — e aí um
-            # AWS_ENDPOINT_URL no ambiente (comum em quem usa emulador) não pode
-            # sequestrar a chamada. ignore_configured_endpoint_urls desliga esse
-            # override vindo de variável de ambiente e do ~/.aws/config.
-            client_kwargs["config"] = BotocoreConfig(ignore_configured_endpoint_urls=True)
+        client_kwargs["config"] = BotocoreConfig(ignore_configured_endpoint_urls=True)
 
         self.client = session.client("securityagent", **client_kwargs)
 
@@ -699,13 +685,16 @@ class Boto3SecurityAgentAdapter(SecurityAgentPort):
     # =========================================================================
     # 1. PEN-TESTING (DEMO 3 - RED TEAM)
     # =========================================================================
-    def register_target_pentest(self, space_id: str, title: str, target_uri: str) -> str:
+    def register_target_pentest(self, space_id: str, title: str, target_uri: str, service_role: Optional[str] = None) -> str:
         try:
-            response = self.client.create_pentest(
-                agentSpaceId=space_id,
-                title=title,
-                assets={"endpoints": [{"uri": target_uri}]}
-            )
+            params: Dict[str, Any] = {
+                "agentSpaceId": space_id,
+                "title": title,
+                "assets": {"endpoints": [{"uri": target_uri}]}
+            }
+            if service_role:
+                params["serviceRole"] = service_role
+            response = self.client.create_pentest(**params)
             return str(response["pentestId"])
         except (ClientError, BotoCoreError) as exc:
             raise SecurityAgentConnectionError(f"Erro na API AWS CreatePentest para '{target_uri}': {exc}")
@@ -1289,20 +1278,20 @@ class PentestService(PentestUseCasePort):
     # =========================================================================
     # PILAR 1: EXECUÇÃO DE PEN-TESTING (DEMO 3 - RED TEAM)
     # =========================================================================
-    def create_pentest_target(self, target_uri: str, title: str) -> str:
+    def create_pentest_target(self, target_uri: str, title: str, service_role: Optional[str] = None) -> str:
         """Registra o alvo (CreatePentest) e devolve o Pentest ID, sem disparar o Job de scan."""
         space_id = self._single_space_id("Criação de pen-test")
 
         print(f"    [Sistemas Red Team] Registrando alvo '{target_uri}' (Space: {space_id})...")
-        pentest_id = self.security_agent.register_target_pentest(space_id, title, target_uri)
+        pentest_id = self.security_agent.register_target_pentest(space_id, title, target_uri, service_role)
         print(f"    [Sistemas Red Team] Pentest criado. ID: {pentest_id}")
         return pentest_id
 
-    def execute_pentest_for_target(self, target_uri: str, title: str) -> PentestExecutionResult:
+    def execute_pentest_for_target(self, target_uri: str, title: str, service_role: Optional[str] = None) -> PentestExecutionResult:
         space_id = self._single_space_id("Registro de pen-test")
 
         print(f"    [Sistemas Red Team] Registrando alvo '{target_uri}' (Space: {space_id})...")
-        pentest_id = self.security_agent.register_target_pentest(space_id, title, target_uri)
+        pentest_id = self.security_agent.register_target_pentest(space_id, title, target_uri, service_role)
 
         print(f"    [Sistemas Red Team] Acionando motor ofensivo no pentest ID: {pentest_id}...")
         job_id = self.security_agent.trigger_pentest_job(space_id, pentest_id)
@@ -1728,26 +1717,28 @@ class CommandLineAdapter:
         click.secho("  Use-o nas próximas ações com: ", nl=False, fg="bright_black")
         click.secho(f"--agent-space {space_id}", fg="bright_black", italic=True)
 
-    def create_pentest(self, target_uri: str, title: str):
+    def create_pentest(self, target_uri: str, title: str, service_role: str = None):
         """Cria (registra) um Pen-Test no Agent Space sem disparar o scan, exibindo o Pentest ID."""
         click.echo("")
         click.secho(f"[*] CRIANDO PEN-TEST PARA '{target_uri}' (SEM DISPARAR SCAN)", fg="bright_red", bold=True, reverse=True)
         click.secho("-" * 78, fg="red")
-        pentest_id = self.use_case.create_pentest_target(target_uri, title)
+        pentest_id = self.use_case.create_pentest_target(target_uri, title, service_role)
         click.echo("")
         click.secho(f"[SUCESSO] Pen-Test registrado no Agent Space da AWS.", fg="bright_green", bold=True)
         click.echo("  Pentest ID: " + click.style(pentest_id, fg="green", bold=True))
         click.echo("  Alvo      : " + click.style(target_uri, fg="bright_cyan"))
         click.echo("  Título    : " + click.style(title, fg="yellow"))
+        if service_role:
+            click.echo("  ServiceRole: " + click.style(service_role, fg="magenta"))
         click.secho("  Dispare o scan depois com: ", nl=False, fg="bright_black")
         click.secho(f"scan --target {target_uri}", fg="bright_black", italic=True)
 
-    def run_single_scan(self, target_uri: str, title: str):
+    def run_single_scan(self, target_uri: str, title: str, service_role: str = None):
         """Dispara um Pen-Test pontual contra um alvo informado na linha de comando."""
         click.echo("")
         click.secho(f"[*] PEN-TEST PONTUAL CONTRA '{target_uri}'", fg="bright_red", bold=True, reverse=True)
         click.secho("-" * 78, fg="red")
-        resultado = self.use_case.execute_pentest_for_target(target_uri, title)
+        resultado = self.use_case.execute_pentest_for_target(target_uri, title, service_role)
         self.render_execution_report([resultado])
 
 
@@ -1784,22 +1775,10 @@ class SuiteGroup(click.Group):
     help="Caminho do módulo Terraform de infraestrutura (IaC)"
 )
 @click.option(
-    "--cloud",
-    is_flag=True,
-    default=False,
-    help="Conecta no serviço real da AWS (em vez do emulador kumo)"
-)
-@click.option(
     "--agent-space", "-a", "agent_space_id",
     default=None,
     envvar="AGENT_SPACE_ID",
-    help="Sobrescreve o Agent Space da config (o 'pentest-demo-space' fixo não existe na conta real)"
-)
-@click.option(
-    "--endpoint", "-e", "endpoint_url",
-    default=None,
-    envvar="KUMO_ENDPOINT",
-    help="URL do emulador kumo. [padrão: http://kumo.127.0.0.1.nip.io; ignorado com --cloud]"
+    help="Sobrescreve o Agent Space da config"
 )
 @click.option(
     "--region", "-r",
@@ -1811,24 +1790,24 @@ class SuiteGroup(click.Group):
     "--profile", "-p", "profile_name",
     default=None,
     envvar="AWS_PROFILE",
-    help="Perfil do ~/.aws/credentials (somente com --cloud)"
+    help="Perfil do ~/.aws/credentials a usar"
 )
 @click.option(
     "--timeout",
     type=int,
-    default=None,
-    show_default="300s no kumo, 3600s com --cloud",
+    default=3600,
+    show_default=True,
     help="Tolerância total de espera por um Job de pen-test, em segundos"
 )
 @click.option(
     "--poll-interval",
     type=int,
-    default=None,
-    show_default="5s no kumo, 30s com --cloud",
+    default=30,
+    show_default=True,
     help="Intervalo entre consultas de status do Job, em segundos"
 )
 @click.pass_context
-def cli(ctx, source, tf_dir, cloud, agent_space_id, endpoint_url, region, profile_name, timeout, poll_interval):
+def cli(ctx, source, tf_dir, agent_space_id, region, profile_name, timeout, poll_interval):
     """
     AWS SECURITY AGENT DEVSECOPS SUITE (Arquitetura Hexagonal + Click CLI)
 
@@ -1847,24 +1826,18 @@ def cli(ctx, source, tf_dir, cloud, agent_space_id, endpoint_url, region, profil
     else:  # hybrid
         config_adapter = HybridTerraformYamlAdapter(yaml_filepath=yaml_config, terraform_dir=tf_dir)
 
-    # Alvo das chamadas: AWS real com --cloud, senão o emulador kumo.
-    endpoint = None if cloud else (endpoint_url or "http://kumo.127.0.0.1.nip.io")
+    espera = timeout
+    intervalo = poll_interval
 
-    # Um pen-test na AWS leva bem mais que num emulador, onde o job conclui na
-    # hora: por isso a espera padrão é maior no modo cloud.
-    espera = timeout if timeout is not None else (3600 if cloud else 300)
-    intervalo = poll_interval if poll_interval is not None else (30 if cloud else 5)
-
-    alvo = f"AWS ({region})" if cloud else f"kumo em {endpoint}"
+    alvo = f"AWS ({region})"
     click.secho(f"[INIT] Alvo: {alvo} | espera máxima por job: {espera}s", fg="cyan")
 
     # CreateThreatModel (Design Review) exige serviceRole; o Terraform já expõe o ARN.
     get_role = getattr(config_adapter, "get_service_role_arn", None)
     boto3_adapter = Boto3SecurityAgentAdapter(
         region_name=region,
-        endpoint_url=endpoint,
         service_role=get_role() if callable(get_role) else None,
-        profile_name=profile_name if cloud else None
+        profile_name=profile_name
     )
 
     pentest_service = PentestService(
@@ -1879,7 +1852,6 @@ def cli(ctx, source, tf_dir, cloud, agent_space_id, endpoint_url, region, profil
     ctx.ensure_object(dict)
     ctx.obj["adapter"] = CommandLineAdapter(use_case=pentest_service)
     ctx.obj["source"] = source
-    ctx.obj["cloud"] = cloud
 
 
 @cli.command("dashboard", short_help="Exibe o painel consolidado com status do Agent Space e alvos")
@@ -1936,21 +1908,23 @@ def cmd_run(ctx):
 @cli.command("scan", short_help="[DEMO 3] Dispara um Pen-Test pontual contra um alvo informado")
 @click.option("--target", "-t", "target_uri", required=True, help="URI do alvo (ex: http://vulnerable-app.pentest.svc)")
 @click.option("--title", default="Pen-Test-sob-demanda", show_default=True, help="Título do teste (só letras, números, hífen e underscore; máx. 100)")
+@click.option("--service-role", "-S", default=None, help="Service Role ARN para o pentest")
 @click.pass_context
-def cmd_scan(ctx, target_uri, title):
+def cmd_scan(ctx, target_uri, title, service_role):
     """Registra, dispara e acompanha um único alvo, sem depender do catálogo configurado."""
     adapter = ctx.obj["adapter"]
-    adapter.run_single_scan(target_uri=target_uri, title=title)
+    adapter.run_single_scan(target_uri=target_uri, title=title, service_role=service_role)
 
 
 @cli.command("create-pentest", short_help="[DEMO 3] Cria (registra) um Pen-Test contra um alvo, sem disparar o scan")
 @click.option("--target", "-t", "target_uri", required=True, help="URI do alvo (ex: http://vulnerable-app.pentest.svc)")
 @click.option("--title", default="Pen-Test-sob-demanda", show_default=True, help="Título do teste (só letras, números, hífen e underscore; máx. 100)")
+@click.option("--service-role", "-S", default=None, help="Service Role ARN para o pentest")
 @click.pass_context
-def cmd_create_pentest(ctx, target_uri, title):
+def cmd_create_pentest(ctx, target_uri, title, service_role):
     """Registra o alvo no Agent Space via CreatePentest e devolve o Pentest ID, sem acionar o motor ofensivo."""
     adapter = ctx.obj["adapter"]
-    adapter.create_pentest(target_uri=target_uri, title=title)
+    adapter.create_pentest(target_uri=target_uri, title=title, service_role=service_role)
 
 
 @cli.command("design-review", short_help="[DEMO 1] Audita diagramas e documentos de arquitetura (Blue Team)")
