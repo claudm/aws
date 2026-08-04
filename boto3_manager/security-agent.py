@@ -57,6 +57,12 @@ EXEMPLOS DE COMANDOS:
 Flags Globais podem ser usadas (antes do comando):
   $ python security-agent.py --region "sa-east-1" --profile "Profile" --agent-space "space-id" scan --target "http://alvo.com"
 
+python security-agent.py create-pentest \
+  --target "http://example.com" \
+  --title "MeuPentest" \
+  --service-role "arn:aws:iam::123456789012:role/Role" \
+  --agent-space "SEU-AGENT-SPACE-ID"
+
 """
 
 import os
@@ -1767,8 +1773,11 @@ class CommandLineAdapter:
         click.secho("  Use-o nas próximas ações com: ", nl=False, fg="bright_black")
         click.secho(f"--agent-space {space_id}", fg="bright_black", italic=True)
 
-    def create_pentest(self, target_uri: str, title: str, service_role: str = None):
+    def create_pentest(self, target_uri: str, title: str, service_role: str = None, agent_space_id: str = None):
         """Cria (registra) um Pen-Test no Agent Space sem disparar o scan, exibindo o Pentest ID."""
+        if agent_space_id:
+            self.use_case.agent_space_override = agent_space_id
+
         click.echo("")
         click.secho(f"[*] CRIANDO PEN-TEST PARA '{target_uri}' (SEM DISPARAR SCAN)", fg="bright_red", bold=True, reverse=True)
         click.secho("-" * 78, fg="red")
@@ -1783,8 +1792,11 @@ class CommandLineAdapter:
         click.secho("  Dispare o scan depois com: ", nl=False, fg="bright_black")
         click.secho(f"scan --target {target_uri}", fg="bright_black", italic=True)
 
-    def run_single_scan(self, target_uri: str, title: str, service_role: str = None):
+    def run_single_scan(self, target_uri: str, title: str, service_role: str = None, agent_space_id: str = None):
         """Dispara um Pen-Test pontual contra um alvo informado na linha de comando."""
+        if agent_space_id:
+            self.use_case.agent_space_override = agent_space_id
+
         click.echo("")
         click.secho(f"[*] PEN-TEST PONTUAL CONTRA '{target_uri}'", fg="bright_red", bold=True, reverse=True)
         click.secho("-" * 78, fg="red")
@@ -1959,22 +1971,24 @@ def cmd_run(ctx):
 @click.option("--target", "-t", "target_uri", required=True, help="URI do alvo (ex: http://vulnerable-app.pentest.svc)")
 @click.option("--title", default="Pen-Test-sob-demanda", show_default=True, help="Título do teste (só letras, números, hífen e underscore; máx. 100)")
 @click.option("--service-role", "-S", default=None, help="Service Role ARN para o pentest")
+@click.option("--agent-space", "-a", "agent_space_id", default=None, help="Agent Space ID (ignora o config global)")
 @click.pass_context
-def cmd_scan(ctx, target_uri, title, service_role):
+def cmd_scan(ctx, target_uri, title, service_role, agent_space_id):
     """Registra, dispara e acompanha um único alvo, sem depender do catálogo configurado."""
     adapter = ctx.obj["adapter"]
-    adapter.run_single_scan(target_uri=target_uri, title=title, service_role=service_role)
+    adapter.run_single_scan(target_uri=target_uri, title=title, service_role=service_role, agent_space_id=agent_space_id)
 
 
 @cli.command("create-pentest", short_help="[DEMO 3] Cria (registra) um Pen-Test contra um alvo, sem disparar o scan")
 @click.option("--target", "-t", "target_uri", required=True, help="URI do alvo (ex: http://vulnerable-app.pentest.svc)")
 @click.option("--title", default="Pen-Test-sob-demanda", show_default=True, help="Título do teste (só letras, números, hífen e underscore; máx. 100)")
 @click.option("--service-role", "-S", default=None, help="Service Role ARN para o pentest")
+@click.option("--agent-space", "-a", "agent_space_id", default=None, help="Agent Space ID (ignora o config global)")
 @click.pass_context
-def cmd_create_pentest(ctx, target_uri, title, service_role):
+def cmd_create_pentest(ctx, target_uri, title, service_role, agent_space_id):
     """Registra o alvo no Agent Space via CreatePentest e devolve o Pentest ID, sem acionar o motor ofensivo."""
     adapter = ctx.obj["adapter"]
-    adapter.create_pentest(target_uri=target_uri, title=title, service_role=service_role)
+    adapter.create_pentest(target_uri=target_uri, title=title, service_role=service_role, agent_space_id=agent_space_id)
 
 
 @cli.command("design-review", short_help="[DEMO 1] Audita diagramas e documentos de arquitetura (Blue Team)")
