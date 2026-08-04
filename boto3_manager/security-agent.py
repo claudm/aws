@@ -7,6 +7,56 @@ adaptadores e serviço) num único módulo executável, sem dependência do paco
 boto3_manager. O wiring continua sendo feito no contexto do Click (ctx.obj).
 
 Uso: python security-agent.py [OPÇÕES] COMANDO [ARGS]
+
+EXEMPLOS DE COMANDOS:
+
+1. Espaços de Trabalho (Agent Spaces)
+  Criar um espaço:
+  $ python security-agent.py create-agent-space --name "Pentest-Homolog" --description "Homolog" --role-arn "arn:aws:iam::123456789012:role/Role"
+  Listar espaços:
+  $ python security-agent.py agent-spaces
+
+2. Catálogo e Automação de Alvos
+  Listar os alvos mapeados do código:
+  $ python security-agent.py jobs
+  Consultar os testes executados na AWS:
+  $ python security-agent.py remote-jobs
+  Painel executivo com status e falhas:
+  $ python security-agent.py dashboard
+
+3. Red Team: Pen-Testing Ofensivo
+  Registrar alvo para teste, sem iniciar o motor:
+  $ python security-agent.py create-pentest --target "http://minha-api-vulneravel.com" --title "API" --service-role "arn:aws:iam::123456789012:role/Role"
+  Executar varredura em um alvo único e ver resultado:
+  $ python security-agent.py scan --target "http://minha-api-vulneravel.com" --title "API Test" --service-role "arn:aws:iam::123456789012:role/Role"
+  Disparar scans automatizados para todos os alvos configurados:
+  $ python security-agent.py run
+  Abortar teste rodando (Circuit Breaker):
+  $ python security-agent.py stop --job-id "job-f1a23b45-6789-abcd"
+
+4. Blue Team: Design Review de Arquitetura
+  Submeter uma pasta de diagramas para a IA auditar falhas:
+  $ python security-agent.py design-review --dir "caminho/para/pasta"
+  Ver histórico de revisões de arquitetura:
+  $ python security-agent.py design-reviews
+
+5. GitOps: Code Review
+  Auditar as modificações de IaC no GitHub:
+  $ python security-agent.py github-pr
+
+6. Governança e Compliance
+  Adicionar uma nova regra mandatória de segurança da organização:
+  $ python security-agent.py add-rule --title "TLS-Restrito" --domain "Data Protection" --description "Obriga TLS 1.3"
+  Listar as regras atuais mapeadas:
+  $ python security-agent.py compliance
+
+7. Gestão de Assets e Infraestrutura
+  Validar titularidade programática do domínio do alvo:
+  $ python security-agent.py verify-domain
+
+Flags Globais podem ser usadas (antes do comando):
+  $ python security-agent.py --region "sa-east-1" --profile "Profile" --agent-space "space-id" scan --target "http://alvo.com"
+
 """
 
 import os
