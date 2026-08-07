@@ -1,0 +1,253 @@
+{
+  "description": "Roles IAM necessarias para executar security-agent em uma instancia EC2. Substitua <ACCOUNT_ID>, <REGION> e <SUFFIX> antes de aplicar.",
+  "fontesOficiais": {
+    "createIamRole": "https://docs.aws.amazon.com/securityagent/latest/userguide/create-iam-role.html",
+    "migracaoAcoesRecursos": "https://docs.aws.amazon.com/securityagent/latest/userguide/security-iam-migration.html",
+    "managedPolicyAWSSecurityAgentWebAppPolicy": "https://docs.aws.amazon.com/aws-managed-policy/latest/reference/AWSSecurityAgentWebAppPolicy.html",
+    "managedPoliciesOverview": "https://docs.aws.amazon.com/securityagent/latest/userguide/security-iam-awsmanpol.html",
+    "observacao": "O formato de ARN 'arn:aws:securityagent:<region>:<account>:agent-space*' e a condicao aws:ResourceAccount vieram da AWSSecurityAgentWebAppPolicy v6 (editada em 2026-06-11). As trust policies vieram da pagina de migracao (formato pos 2026-03-09)."
+  },
+  "placeholders": {
+    "<ACCOUNT_ID>": "ID da conta AWS (12 digitos)",
+    "<REGION>": "Regiao usada na flag --region do CLI (ex.: us-east-1)",
+    "<SUFFIX>": "Sufixo dos nomes das roles criadas pela stack Terraform (aws_iam_role.service_role / app_role)"
+  },
+  "roles": [
+    {
+      "name": "SecurityAgentEC2Role",
+      "purpose": "Role do instance profile da EC2. E a identidade que o boto3 usa para chamar a API securityagent a partir do security-agent.",
+      "attachTo": "Instance profile anexado a instancia EC2",
+      "notas": {
+        "EscopoDaConta": "Acoes que a AWSSecurityAgentWebAppPolicy declara com Resource '*' porque nao sao escopadas por agent space.",
+        "EscopoDoAgentSpace": "Todas confirmadas na AWSSecurityAgentWebAppPolicy v6, com o mesmo Resource 'agent-space*'.",
+        "AcoesAdministrativas": "ATENCAO: estas acoes existem como operacoes da API (service model securityagent 2025-09-06) mas NAO aparecem em nenhuma managed policy nem pagina de doc consultada. Os nomes seguem a convencao 1:1 operacao->acao IAM, porem nao estao confirmados na Service Authorization Reference. Remova este statement se nao usar os comandos create-agent-space, add-rule, compliance ou verify-domain.",
+        "PassServiceAndAppRoles": "Necessario porque create-pentest/scan passam --service-role e create-agent-space passa --role-arn para a API."
+      },
+      "trustPolicy": {
+        "Version": "2012-10-17",
+        "Statement": [
+          {
+            "Sid": "EC2AssumeRole",
+            "Effect": "Allow",
+            "Principal": { "Service": "ec2.amazonaws.com" },
+            "Action": "sts:AssumeRole"
+          }
+        ]
+      },
+      "permissionsPolicy": {
+        "Version": "2012-10-17",
+        "Statement": [
+          {
+            "Sid": "EscopoDaConta",
+            "Effect": "Allow",
+            "Action": [
+              "securityagent:ListAgentSpaces",
+              "securityagent:ListSecurityRequirements",
+              "securityagent:ListTargetDomains",
+              "securityagent:BatchGetTargetDomains"
+            ],
+            "Resource": "*",
+            "Condition": {
+              "StringEquals": { "aws:ResourceAccount": "${aws:PrincipalAccount}" }
+            }
+          },
+          {
+            "Sid": "EscopoDoAgentSpace",
+            "Effect": "Allow",
+            "Action": [
+              "securityagent:BatchGetAgentSpaces",
+              "securityagent:CreatePentest",
+              "securityagent:StartPentestJob",
+              "securityagent:StopPentestJob",
+              "securityagent:BatchGetPentestJobs",
+              "securityagent:ListPentests",
+              "securityagent:ListPentestJobsForPentest",
+              "securityagent:ListFindings",
+              "securityagent:BatchGetFindings",
+              "securityagent:AddArtifact",
+              "securityagent:CreateThreatModel",
+              "securityagent:StartThreatModelJob",
+              "securityagent:ListThreatModels",
+              "securityagent:ListThreatModelJobs",
+              "securityagent:ListThreats",
+              "securityagent:BatchGetThreats",
+              "securityagent:ListCodeReviews",
+              "securityagent:ListCodeReviewJobsForCodeReview"
+            ],
+            "Resource": "arn:aws:securityagent:<REGION>:<ACCOUNT_ID>:agent-space*",
+            "Condition": {
+              "StringEquals": { "aws:ResourceAccount": "${aws:PrincipalAccount}" }
+            }
+          },
+          {
+            "Sid": "AcoesAdministrativas",
+            "Effect": "Allow",
+            "Action": [
+              "securityagent:CreateAgentSpace",
+              "securityagent:ListSecurityRequirementPacks",
+              "securityagent:BatchGetSecurityRequirements",
+              "securityagent:BatchCreateSecurityRequirements",
+              "securityagent:CreateSecurityRequirementPack",
+              "securityagent:UpdateSecurityRequirementPack",
+              "securityagent:VerifyTargetDomain"
+            ],
+            "Resource": "*",
+            "Condition": {
+              "StringEquals": { "aws:ResourceAccount": "${aws:PrincipalAccount}" }
+            }
+          },
+          {
+            "Sid": "PassServiceAndAppRoles",
+            "Effect": "Allow",
+            "Action": "iam:PassRole",
+            "Resource": [
+              "arn:aws:iam::<ACCOUNT_ID>:role/SecurityAgentServiceRole-<SUFFIX>",
+              "arn:aws:iam::<ACCOUNT_ID>:role/SecurityAgentAppRole-<SUFFIX>"
+            ],
+            "Condition": {
+              "StringEquals": {
+                "iam:PassedToService": "securityagent.amazonaws.com"
+              }
+            }
+          }
+        ]
+      }
+    },
+    {
+      "name": "SecurityAgentServiceRole-<SUFFIX>",
+      "purpose": "Penetration Test Service Role da doc oficial. Passada em --service-role (CreatePentest / CreateThreatModel). O servico Security Agent assume esta role para acessar e testar seus recursos AWS.",
+      "attachTo": "Nao vai no instance profile; e apenas referenciada pelo ARN nos comandos do CLI",
+      "notas": {
+        "trustPolicy": "Formato da pagina de migracao (pos 2026-03-09). A pagina create-iam-role mostra uma variante com sts:ExternalId; use aquela se seu setup usar External ID.",
+        "permissionsPolicy": "A doc recomenda acesso somente leitura aos recursos que entram no escopo do teste, ou as managed policies SecurityAudit / ViewOnlyAccess. Ajuste ao seu escopo real de pentest."
+      },
+      "trustPolicy": {
+        "Version": "2012-10-17",
+        "Statement": [
+          {
+            "Sid": "SecurityAgentAssume",
+            "Effect": "Allow",
+            "Principal": { "Service": "securityagent.amazonaws.com" },
+            "Action": "sts:AssumeRole",
+            "Condition": {
+              "StringEquals": { "aws:SourceAccount": "<ACCOUNT_ID>" },
+              "ArnLike": {
+                "aws:SourceArn": "arn:aws:securityagent:<REGION>:<ACCOUNT_ID>:agent-space/*"
+              }
+            }
+          }
+        ]
+      },
+      "permissionsPolicy": {
+        "Version": "2012-10-17",
+        "Statement": [
+          {
+            "Sid": "LeituraDosRecursosSobTeste",
+            "Effect": "Allow",
+            "Action": [
+              "ec2:Describe*",
+              "iam:Get*",
+              "iam:List*",
+              "iam:SimulatePrincipalPolicy",
+              "logs:DescribeLogGroups",
+              "logs:DescribeLogStreams",
+              "cloudwatch:Describe*",
+              "cloudwatch:Get*",
+              "cloudwatch:List*",
+              "s3:GetObject",
+              "s3:ListBucket"
+            ],
+            "Resource": "*"
+          },
+          {
+            "Sid": "AllowCloudWatchLogs",
+            "Effect": "Allow",
+            "Action": [
+              "logs:CreateLogGroup",
+              "logs:CreateLogStream",
+              "logs:PutLogEvents"
+            ],
+            "Resource": "arn:aws:logs:<REGION>:<ACCOUNT_ID>:log-group:/aws/securityagent/*"
+          }
+        ]
+      },
+      "alternativaManagedPolicies": [
+        "arn:aws:iam::aws:policy/SecurityAudit",
+        "arn:aws:iam::aws:policy/job-function/ViewOnlyAccess"
+      ]
+    },
+    {
+      "name": "SecurityAgentAppRole-<SUFFIX>",
+      "purpose": "Application Role da doc oficial. Passada em create-agent-space --role-arn (campo awsResources.iamRoles). O servico assume esta role para dar aos usuarios do WebApp permissao sobre as APIs.",
+      "attachTo": "Nao vai no instance profile; e apenas referenciada pelo ARN no comando create-agent-space",
+      "notas": {
+        "trustPolicy": "Formato da pagina de migracao. O statement sts:SetContext so e necessario no cenario de IAM Identity Center; remova-o se nao usar Identity Center."
+      },
+      "trustPolicy": {
+        "Version": "2012-10-17",
+        "Statement": [
+          {
+            "Sid": "SecurityAgentAssume",
+            "Effect": "Allow",
+            "Principal": { "Service": "securityagent.amazonaws.com" },
+            "Action": "sts:AssumeRole",
+            "Condition": {
+              "StringEquals": { "aws:SourceAccount": "<ACCOUNT_ID>" },
+              "ArnLike": {
+                "aws:SourceArn": [
+                  "arn:aws:securityagent:<REGION>:<ACCOUNT_ID>:application/*",
+                  "arn:aws:securityagent:<REGION>:<ACCOUNT_ID>:agent-space/*"
+                ]
+              }
+            }
+          },
+          {
+            "Sid": "SecurityAgentSetContext",
+            "Effect": "Allow",
+            "Principal": { "Service": "securityagent.amazonaws.com" },
+            "Action": "sts:SetContext",
+            "Condition": {
+              "StringEquals": { "aws:SourceAccount": "<ACCOUNT_ID>" },
+              "ForAllValues:ArnEquals": {
+                "sts:RequestContextProviders": "arn:aws:iam::aws:contextProvider/IdentityCenter"
+              },
+              "ArnLike": {
+                "aws:SourceArn": [
+                  "arn:aws:securityagent:<REGION>:<ACCOUNT_ID>:application/*",
+                  "arn:aws:securityagent:<REGION>:<ACCOUNT_ID>:agent-space/*"
+                ]
+              }
+            }
+          }
+        ]
+      },
+      "managedPolicyArns": [
+        "arn:aws:iam::aws:policy/service-role/AWSSecurityAgentWebAppPolicy"
+      ]
+    }
+  ],
+  "naoNecessarias": {
+    "ActorRole": "A doc descreve um terceiro tipo de role (Actor Role), usada pelo agente para autenticar contra a aplicacao alvo (API Gateway, Lambda URL, Cognito). O security-agent nunca passa actor role em nenhuma chamada, entao ela so e necessaria se o alvo exigir autenticacao AWS.",
+    "SecurityAgentWebAppAPIPolicy": "Managed policy legada, referencia o recurso agent-instance e os nomes de acao antigos. So relevante para agent spaces criados antes de 2026-03-09."
+  },
+  "opcional": {
+    "descricao": "Necessario apenas se a EC2 tambem rodar 'terraform output -json' (TerraformJobConfigSourceAdapter) com backend remoto. Adicione ao SecurityAgentEC2Role.",
+    "policy": {
+      "Version": "2012-10-17",
+      "Statement": [
+        {
+          "Sid": "TerraformRemoteState",
+          "Effect": "Allow",
+          "Action": [
+            "s3:GetObject",
+            "s3:ListBucket"
+          ],
+          "Resource": [
+            "arn:aws:s3:::<TF_STATE_BUCKET>",
+            "arn:aws:s3:::<TF_STATE_BUCKET>/*"
+          ]
+        }
+      ]
+    }
+  }
+}
