@@ -3,18 +3,21 @@
 Mapeia as respostas da API para os modelos do app (Space, Pentest,
 VerifiedEndpoint). Operações usadas:
   - list_agent_spaces / batch_get_agent_spaces / create_agent_space / update_agent_space
+  - list_tags_for_resource / tag_resource / untag_resource (tags do agent space)
   - list_pentests / batch_get_pentests / create_pentest
   - list_pentest_jobs_for_pentest (status de execução, best-effort)
   - list_target_domains / batch_get_target_domains / verify_target_domain
 """
 from __future__ import annotations
 
+import logging
 from datetime import datetime, timezone
 from urllib.parse import urlparse
 
 from botocore.exceptions import BotoCoreError, ClientError
 
 from .aws import _aws_error, _session  # reutiliza sessão/erro da camada AWS
+from .config import get_settings
 from .schemas import (
     ConnectedResource,
     NetworkConfig,
@@ -24,6 +27,9 @@ from .schemas import (
     TargetConfig,
     VerifiedEndpoint,
 )
+
+
+logger = logging.getLogger("security-agent.securityagent")
 
 
 def _client(region: str, account_id: str | None = None):
@@ -48,6 +54,48 @@ def _first_list(resp: dict, *hints: str) -> list:
 # ---------------------------------------------------------------------------
 # Agent Spaces
 # ---------------------------------------------------------------------------
+def agent_space_arn(region: str, account_id: str, space_id: str) -> str:
+    """ARN do agent space, montado por convenção (ver AGENT_SPACE_ARN_TEMPLATE).
+
+    O serviço não devolve o ARN em nenhuma operação, mas TagResource e
+    ListTagsForResource exigem um.
+    """
+    return get_settings().agent_space_arn_template.format(
+        region=region, account_id=account_id, space_id=space_id
+    )
+
+
+def list_space_tags(region: str, account_id: str, space_id: str) -> dict[str, str]:
+    """Tags do Space; best-effort — ARN por convenção pode não bater na conta."""
+    try:
+        resp = _client(region).list_tags_for_resource(
+            resourceArn=agent_space_arn(region, account_id, space_id)
+        )
+        return resp.get("tags") or {}
+    except (ClientError, BotoCoreError) as exc:  # noqa: BLE001 — tags são acessórias
+        logger.warning("Não foi possível ler as tags de %s: %s", space_id, exc)
+        return {}
+
+
+def set_space_tags(
+    region: str, account_id: str, space_id: str, tags: dict[str, str]
+) -> dict[str, str]:
+    """Aplica `tags` como a lista completa: grava as novas e remove as que sumiram."""
+    arn = agent_space_arn(region, account_id, space_id)
+    current = list_space_tags(region, account_id, space_id)
+    removed = [k for k in current if k not in tags]
+    changed = {k: v for k, v in tags.items() if current.get(k) != v}
+    client = _client(region)
+    try:
+        if removed:
+            client.untag_resource(resourceArn=arn, tagKeys=removed)
+        if changed:
+            client.tag_resource(resourceArn=arn, tags=changed)
+    except (ClientError, BotoCoreError) as exc:
+        raise _aws_error(exc, "Falha ao atualizar as tags do agent space")
+    return tags
+
+
 def list_agent_spaces(region: str, account_id: str) -> list[Space]:
     client = _client(region, account_id)
     out: list[Space] = []
@@ -94,6 +142,7 @@ def get_agent_space(region: str, space_id: str, account_id: str) -> Space | None
         region=region,
         target_domain_ids=s.get("targetDomainIds", []) or [],
         aws_resources=s.get("awsResources") or None,
+        tags=list_space_tags(region, account_id, space_id),
     )
 
 
@@ -133,6 +182,7 @@ def create_agent_space(
         region=region,
         target_domain_ids=resp.get("targetDomainIds", []) or [],
         aws_resources=resp.get("awsResources") or aws_resources,
+        tags=tags or {},
     )
 
 
@@ -145,11 +195,12 @@ def update_agent_space(
     aws_resources: dict | None = None,
     target_domain_ids: list[str] | None = None,
     code_review_settings: dict | None = None,
+    tags: dict[str, str] | None = None,
 ) -> Space:
     """UpdateAgentSpace: só manda o que veio preenchido (None = não mexe).
 
-    A API não aceita kmsKeyId nem tags nesta operação — ambos são definidos
-    apenas na criação.
+    A API não aceita kmsKeyId nem tags nesta operação: kmsKeyId só existe na
+    criação e as tags vão por TagResource/UntagResource logo depois.
     """
     kw: dict = {"agentSpaceId": space_id}
     if name is not None:
@@ -166,6 +217,10 @@ def update_agent_space(
         resp = _client(region).update_agent_space(**kw)
     except (ClientError, BotoCoreError) as exc:
         raise _aws_error(exc, "Falha ao atualizar agent space")
+    applied_tags = (
+        set_space_tags(region, account_id, space_id, tags) if tags is not None
+        else list_space_tags(region, account_id, space_id)
+    )
     return Space(
         space_id=resp.get("agentSpaceId", space_id),
         name=resp.get("name", name or ""),
@@ -174,6 +229,7 @@ def update_agent_space(
         region=region,
         target_domain_ids=resp.get("targetDomainIds", []) or (target_domain_ids or []),
         aws_resources=resp.get("awsResources") or aws_resources,
+        tags=applied_tags,
     )
 
 

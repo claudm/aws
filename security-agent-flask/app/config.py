@@ -27,6 +27,15 @@ class Settings(BaseSettings):
     s3_artifacts_bucket: str = "uploads-uva-dev"
     s3_artifacts_prefix: str = "security-agent-artifacts"
 
+    # As operacoes de tag (TagResource/ListTagsForResource) exigem o ARN do
+    # agent space, que NENHUMA operacao do servico devolve e que o modelo do
+    # botocore nao documenta. O formato abaixo segue a convencao da AWS; se a
+    # sua conta usar outro, ajuste por AGENT_SPACE_ARN_TEMPLATE em vez de mexer
+    # no codigo. Placeholders: {region}, {account_id}, {space_id}.
+    agent_space_arn_template: str = (
+        "arn:aws:securityagent:{region}:{account_id}:agent-space/{space_id}"
+    )
+
     secrets_prefix: str = "security-agent/pentests"
     role_name_filter: str = "security-agent"
 

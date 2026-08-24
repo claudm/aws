@@ -57,7 +57,9 @@ def create_space(account_id: str, region: str, body: CreateSpaceRequest) -> Spac
     from uuid import uuid4
     sp = Space(space_id=f"as-{uuid4().hex[:8]}", name=body.name, description=body.description,
                account_id=account_id, region=region,
-               endpoints=[VerifiedEndpoint(url=u) for u in body.endpoints])
+               endpoints=[VerifiedEndpoint(url=u) for u in body.endpoints],
+               target_domain_ids=list(body.target_domain_ids),
+               aws_resources=body.aws_resources, tags=dict(body.tags))
     return get_store().upsert_space(sp)
 
 
@@ -75,7 +77,7 @@ def update_space(space_id: str, body: UpdateSpaceRequest) -> Space:
             settings.aws_region, settings.expected_account_id or "", space_id,
             name=field("name"), description=field("description"),
             aws_resources=field("aws_resources"), target_domain_ids=field("target_domain_ids"),
-            code_review_settings=field("code_review_settings"),
+            code_review_settings=field("code_review_settings"), tags=field("tags"),
         )
 
     # memory
@@ -83,7 +85,7 @@ def update_space(space_id: str, body: UpdateSpaceRequest) -> Space:
     if not space:
         raise ApiError(404, f"Space '{space_id}' não encontrado")
     data: dict = {}
-    for name in ("name", "description", "aws_resources", "target_domain_ids"):
+    for name in ("name", "description", "aws_resources", "target_domain_ids", "tags"):
         if name in sent:
             data[name] = getattr(body, name)
     if "endpoints" in sent:

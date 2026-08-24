@@ -78,7 +78,7 @@ run.py
 | Elemento | Rota |
 |---|---|
 | Carregar Spaces | `POST /api/context/spaces` |
-| Criar / Editar Space | `POST /api/context/spaces/create` · `PATCH /api/context/spaces/<space_id>` |
+| Criar / Editar Space (nome, rede, role, alvos, tags) | `POST /api/context/spaces/create` · `PATCH /api/context/spaces/<space_id>` |
 | Atualizar (pentests) | `GET /api/pentests/space/<space_id>` |
 | Listar VPCs / subnets / SGs | `GET /api/network/...` |
 | Listar endpoints / Verify | `GET` / `POST /api/targets/endpoints...` |
@@ -110,8 +110,11 @@ Com isso:
 
 - **Spaces** vêm de `securityagent:list_agent_spaces` / `batch_get_agent_spaces`;
   o botão **+ Criar Space** chama `create_agent_space` e o **Editar** de cada
-  linha chama `update_agent_space` (a operação não aceita `kmsKeyId` nem `tags`,
-  que só existem na criação).
+  linha chama `update_agent_space`. `kmsKeyId` só existe na criação.
+- **Tags** não passam pelo `update_agent_space`: são lidas com
+  `list_tags_for_resource` e gravadas com `tag_resource` / `untag_resource`
+  (só o diff — grava o que mudou, remove o que saiu da lista). Ver a ressalva
+  do ARN abaixo.
 - **Pentests** vêm de `list_pentests` + `batch_get_pentests`; o status da lista
   é best-effort via `list_pentest_jobs_for_pentest`. Criar chama `create_pentest`.
 - **Endpoints** = target domains (`list_target_domains` / `batch_get_target_domains`);
@@ -120,9 +123,27 @@ Com isso:
 
 Precisa de boto3 recente (o serviço `securityagent`, API 2025-09-06, não existe
 em boto3 antigo). IAM mínimo adicional: `securityagent:ListAgentSpaces`,
-`BatchGetAgentSpaces`, `CreateAgentSpace`, `UpdateAgentSpace`, `ListPentests`, `BatchGetPentests`,
+`BatchGetAgentSpaces`, `CreateAgentSpace`, `UpdateAgentSpace`, `TagResource`,
+`UntagResource`, `ListTagsForResource`, `ListPentests`, `BatchGetPentests`,
 `CreatePentest`, `ListPentestJobsForPentest`, `ListTargetDomains`,
 `BatchGetTargetDomains`, `VerifyTargetDomain`.
+
+### ARN do Agent Space (tags)
+
+`TagResource`, `UntagResource` e `ListTagsForResource` exigem `resourceArn`, mas
+**nenhuma** operação de agent space devolve o ARN e o modelo do botocore não
+documenta o formato (conferido no `service-2.json`: zero padrões
+`arn:...securityagent...`). O app monta o ARN por convenção:
+
+```
+arn:aws:securityagent:{region}:{account_id}:agent-space/{space_id}
+```
+
+Se a sua conta usar outro formato, ajuste `AGENT_SPACE_ARN_TEMPLATE` no `.env`
+em vez de mexer no código. A **leitura** de tags é best-effort: com ARN errado
+a tela mostra o Space sem tags e registra um warning no log, sem quebrar. A
+**gravação** propaga o erro real da AWS (502) — é o sinal de que o formato do
+ARN precisa ser corrigido.
 
 Observação: no `create_pentest`, as credenciais do bloco Authentication
 (actors/authentication) não são enviadas automaticamente — o esquema de

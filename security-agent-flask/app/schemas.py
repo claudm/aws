@@ -30,6 +30,7 @@ class Space(BaseModel):
     target_domain_ids: list[str] = Field(default_factory=list)
     # awsResources do serviço (vpcs/iamRoles/...); usado para pré-preencher a edição
     aws_resources: dict | None = None
+    tags: dict[str, str] = Field(default_factory=dict)
 
 
 class CreateSpaceRequest(BaseModel):
@@ -46,7 +47,9 @@ class CreateSpaceRequest(BaseModel):
 class UpdateSpaceRequest(BaseModel):
     """Edição de Agent Space (PATCH): só os campos enviados são alterados.
 
-    `kms_key_id` e `tags` ficam de fora porque UpdateAgentSpace não os aceita.
+    `kms_key_id` fica de fora porque UpdateAgentSpace não o aceita. `tags` é
+    aceito, mas viaja por outra operação (TagResource/UntagResource) — quando
+    enviado, a lista substitui as tags atuais do Space.
     """
     name: str | None = Field(None, min_length=1)
     description: str | None = None
@@ -54,6 +57,7 @@ class UpdateSpaceRequest(BaseModel):
     target_domain_ids: list[str] | None = None
     endpoints: list[str] | None = None  # modo mock: URLs do Space
     code_review_settings: dict | None = None
+    tags: dict[str, str] | None = None
 
 
 # ---- Rede (EC2) ----

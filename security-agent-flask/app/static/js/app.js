@@ -1,6 +1,6 @@
 "use strict";
 
-const state = { account: null, region: null, space: null, selectedEndpoints: [], endpoints: [], credSeq: 0, editingPentestId: null, editingSpaceId: null, selectedResources: [], availableResources: [], spaceEndpoints: [] };
+const state = { account: null, region: null, space: null, selectedEndpoints: [], endpoints: [], credSeq: 0, editingPentestId: null, editingSpaceId: null, spaceTags: [], selectedResources: [], availableResources: [], spaceEndpoints: [] };
 
 const $ = (s) => document.querySelector(s);
 const el = (t, c, x) => { const n = document.createElement(t); if (c) n.className = c; if (x != null) n.textContent = x; return n; };
@@ -485,6 +485,33 @@ function renderSpaceEndpoints() {
   });
 }
 
+function renderSpaceTags() {
+  const box = $("#sp-tags"); box.innerHTML = "";
+  $("#sp-tags-count").textContent = state.spaceTags.length;
+  state.spaceTags.forEach((tag) => {
+    const chip = el("span", "sa-chip");
+    chip.appendChild(el("span", null, `${tag.key}=${tag.value}`));
+    const rm = el("button", "btn-close", null);
+    rm.type = "button"; rm.setAttribute("aria-label", "Remover");
+    rm.addEventListener("click", () => {
+      state.spaceTags = state.spaceTags.filter((t) => t !== tag);
+      renderSpaceTags();
+    });
+    chip.appendChild(rm);
+    box.appendChild(chip);
+  });
+}
+
+function addSpaceTag() {
+  const key = $("#sp-tag-key").value.trim(), value = $("#sp-tag-value").value.trim();
+  if (!key) return toast("Informe a chave da tag.", "err");
+  const existing = state.spaceTags.find((t) => t.key === key);
+  if (existing) existing.value = value; else state.spaceTags.push({ key, value });
+  $("#sp-tag-key").value = ""; $("#sp-tag-value").value = "";
+  $("#sp-tag-key").focus();
+  renderSpaceTags();
+}
+
 async function createSpaceEndpoint() {
   const url = $("#sp-endpoint").value.trim();
   if (!url) return toast("Informe a URL do alvo.", "err");
@@ -517,6 +544,8 @@ function resetSpaceModal() {
   ["#sp-name", "#sp-desc", "#sp-role", "#sp-vpc", "#sp-subnet", "#sp-sg", "#sp-endpoint"].forEach((s) => ($(s).value = ""));
   ["#sp-vpc-results", "#sp-subnet-results", "#sp-sg-results", "#sp-role-results"].forEach((s) => { if ($(s)) $(s).innerHTML = ""; });
   state.spaceEndpoints = []; renderSpaceEndpoints();
+  ["#sp-tag-key", "#sp-tag-value"].forEach((s) => ($(s).value = ""));
+  state.spaceTags = []; renderSpaceTags();
   setSpaceModalMode(false);
 }
 
@@ -551,6 +580,8 @@ async function editSpace(space) {
     fillSpaceResources(full.aws_resources);
     state.spaceEndpoints = await spaceEndpointsOf(full);
     renderSpaceEndpoints();
+    state.spaceTags = Object.entries(full.tags || {}).map(([key, value]) => ({ key, value }));
+    renderSpaceTags();
   } catch (e) { toast(e.message, "err"); }
 }
 
@@ -574,6 +605,7 @@ async function saveSpace() {
   if (Object.keys(res).length) body.aws_resources = res;
   const targetDomainIds = state.spaceEndpoints.filter((ep) => ep.id).map((ep) => ep.id);
   const endpointUrls = state.spaceEndpoints.filter((ep) => !ep.id).map((ep) => ep.url);
+  const tags = Object.fromEntries(state.spaceTags.map((t) => [t.key, t.value]));
   const btn = $("#btn-save-space"); btn.disabled = true; btn.textContent = editing ? "Salvando…" : "Criando…";
   try {
     let sp;
@@ -581,6 +613,7 @@ async function saveSpace() {
       // PATCH: a lista de alvos do modal substitui a associação atual.
       body.target_domain_ids = targetDomainIds;
       body.endpoints = endpointUrls;
+      body.tags = tags;  // a lista do modal substitui as tags atuais
       sp = await api(`/api/context/spaces/${encodeURIComponent(editing)}`, { method: "PATCH", body });
       toast(`Space ${sp.space_id} atualizado.`, "ok");
       if (state.space && state.space.space_id === sp.space_id) {
@@ -590,6 +623,7 @@ async function saveSpace() {
     } else {
       if (targetDomainIds.length) body.target_domain_ids = targetDomainIds;
       if (endpointUrls.length) body.endpoints = endpointUrls;
+      if (Object.keys(tags).length) body.tags = tags;
       sp = await api("/api/context/spaces/create", { method: "POST", body });
       toast(`Space ${sp.space_id} criado.`, "ok");
     }
@@ -605,6 +639,10 @@ document.addEventListener("DOMContentLoaded", () => {
   $("#btn-save-space").addEventListener("click", saveSpace);
   $("#btn-new-space").addEventListener("click", resetSpaceModal);
   $("#btn-sp-create-endpoint").addEventListener("click", createSpaceEndpoint);
+  $("#btn-sp-add-tag").addEventListener("click", addSpaceTag);
+  ["#sp-tag-key", "#sp-tag-value"].forEach((s) => $(s).addEventListener("keydown", (ev) => {
+    if (ev.key === "Enter") { ev.preventDefault(); addSpaceTag(); }
+  }));
   $("#btn-refresh-pentests").addEventListener("click", refreshPentests);
   $("#btn-list-endpoints").addEventListener("click", listEndpoints);
   $("#btn-list-resources").addEventListener("click", listResources);
@@ -616,6 +654,7 @@ document.addEventListener("DOMContentLoaded", () => {
   document.querySelectorAll("[data-list]").forEach((b) => b.addEventListener("click", () => fillList(b.dataset.list, {
     targetInput: b.dataset.target, resultsBox: b.dataset.results, vpcInput: b.dataset.vpcInput, errorBox: b.dataset.error,
   })));
+  renderSpaceTags();
   addCredential("Credential1");  // começa com uma credencial, como na tela
   renderConnectedResources();
 });

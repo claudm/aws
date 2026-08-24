@@ -30,6 +30,7 @@
       "name": "uva-with-role3",
       "account_id": "{account_id}",
       "region": "{region}",
+      "tags": {"app": "security-agent", "env": "hom", "squad": "uva"},
       "aws_resources": {
         "iamRoles": ["arn:aws:iam::{account_id}:role/role-security-agent-pentest"],
         "vpcs": [
