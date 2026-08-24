@@ -1,0 +1,373 @@
+<!doctype html>
+<html lang="pt-br">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Reporter UVA · Security Agent - Pentests</title>
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet" />
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/styles.css') }}?v={{ css_version }}" />
+</head>
+<body>
+  <!-- ===== Host app shell (Reporter UVA) — estático ===== -->
+  <nav class="uva-nav">
+    <span class="uva-brand">🍇</span>
+    <a class="uva-nav__item">Solicitação</a>
+    <a class="uva-nav__item">Comunidade</a>
+    <a class="uva-nav__item">Relatório</a>
+    <a class="uva-nav__item">Vulnerabilidades ▾</a>
+    <a class="uva-nav__item">Gráficos ▾</a>
+    <a class="uva-nav__item">Ferramentas ▾</a>
+    <span class="uva-nav__spacer"></span>
+    <a class="uva-nav__item">Gerenciamento ▾</a>
+    <a class="uva-nav__item">Sistema ▾</a>
+  </nav>
+  <div class="uva-env">DEV</div>
+
+  <main class="container-fluid px-4 py-3" style="max-width: 1320px;">
+    <h3 class="page-title">🛡️ Security Agent - Pentests</h3>
+    <p class="text-muted mb-4">Configure Pentests para um Space do Security Agent e associe VPC, Security Group, endpoint alvo e role de serviço.</p>
+
+    <div class="row g-4">
+      <!-- ===== Esquerda: Contexto + Resumo ===== -->
+      <div class="col-lg-4">
+        <section class="card sa-card mb-4">
+          <div class="card-body">
+            <h6 class="sa-h">☁️ Contexto AWS</h6>
+            <p class="sa-sub">Defina a conta e a região antes de consultar os Spaces.</p>
+            <label class="form-label sa-label">Conta AWS</label>
+            <input id="in-account" class="form-control form-control-sm mono mb-3" value="{{ default_account }}" />
+            <label class="form-label sa-label">Região</label>
+            <select id="in-region" class="form-select form-select-sm mb-2">
+              {% for r in regions %}
+              <option value="{{ r }}" {% if r == default_region %}selected{% endif %}>{{ r }}</option>
+              {% endfor %}
+            </select>
+            <p class="sa-hint">Conta e região são usadas para buscar VPCs, Security Groups, endpoints e roles.</p>
+            <button class="btn btn-sm btn-outline-primary" id="btn-load-spaces">Carregar Spaces</button>
+          </div>
+        </section>
+
+        <section class="card sa-card">
+          <div class="card-body">
+            <h6 class="sa-h">📍 Resumo da seleção</h6>
+            <p class="sa-sub">Acompanhe o contexto atual antes de criar o Pentest.</p>
+            <div class="sa-eyebrow">SPACE SELECIONADO</div>
+            <div id="sum-space" class="sa-selected mono">—</div>
+            <div class="sa-eyebrow mt-3">CONTA AWS</div>
+            <div id="sum-account" class="mono">—</div>
+            <div class="sa-eyebrow mt-3">REGIÃO</div>
+            <div id="sum-region" class="fw-medium">—</div>
+            <div class="sa-eyebrow mt-3">PRÓXIMO PASSO</div>
+            <div id="next-step" class="fw-medium">Carregue os Spaces para começar.</div>
+          </div>
+        </section>
+      </div>
+
+      <!-- ===== Direita: Spaces + Pentests ===== -->
+      <div class="col-lg-8">
+        <section class="card sa-card mb-4">
+          <div class="card-body">
+            <div class="d-flex justify-content-between align-items-start">
+              <div>
+                <h6 class="sa-h">📁 Spaces do Security Agent</h6>
+                <p class="sa-sub">Selecione um Space para habilitar o formulário de criação.</p>
+              </div>
+              <button class="btn btn-sm btn-outline-primary" id="btn-new-space" data-bs-toggle="modal" data-bs-target="#modal-space">+ Criar Space</button>
+            </div>
+            <div class="sa-scroll">
+              <table class="table table-sm table-hover align-middle sa-table mb-0">
+                <thead><tr><th style="width:32px"></th><th>Space ID</th><th>Nome</th><th>Descrição</th><th style="width:80px">Ações</th></tr></thead>
+                <tbody id="tbody-spaces">
+                  <tr><td colspan="5" class="text-center text-muted py-3">Clique em “Carregar Spaces”.</td></tr>
+                </tbody>
+              </table>
+            </div>
+            <p class="sa-hint mt-2 mb-0">Selecione um Space para habilitar o formulário de criação de Pentest.</p>
+          </div>
+        </section>
+
+        <section class="card sa-card">
+          <div class="card-body">
+            <div class="d-flex justify-content-between align-items-start">
+              <div>
+                <h6 class="sa-h">🗂️ Pentests do Space selecionado</h6>
+                <p class="sa-sub">Atualize a lista para revisar execuções existentes.</p>
+              </div>
+              <button class="btn btn-sm btn-outline-primary" id="btn-refresh-pentests" disabled>Atualizar Pentests</button>
+            </div>
+            <div class="table-responsive">
+              <table class="table table-sm align-middle sa-table mb-0">
+                <thead><tr><th>Pentest ID</th><th>Título</th><th>Status</th><th>Alvo</th><th>Criado em</th><th>Ações</th></tr></thead>
+                <tbody id="tbody-pentests">
+                  <tr><td colspan="6" class="text-center text-muted py-3">Selecione um Space.</td></tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </section>
+      </div>
+    </div>
+
+    <!-- ===== Criar novo Pentest ===== -->
+    <section class="card sa-card mt-4" id="pentest-form-section">
+      <div class="card-body">
+        <h6 class="sa-h" id="pentest-form-title">🛡️ Criar novo Pentest</h6>
+        <p class="sa-sub">Preencha apenas os recursos necessários para a execução.</p>
+
+        <div class="mb-4">
+          <label class="form-label sa-label">Título do Pentest</label>
+          <input id="in-title" class="form-control" placeholder="Ex.: Pentest API de clientes" />
+          <div class="sa-hint">Use um nome fácil de rastrear em consultas futuras.</div>
+        </div>
+
+        <!-- Rede e perímetro -->
+        <h6 class="sa-section">Rede e perímetro</h6>
+        <div class="row g-4 mb-3">
+          <div class="col-md-4">
+            <label class="form-label sa-label">VPC ID <span class="opt">(opcional)</span></label>
+            <div class="input-group input-group-sm">
+              <input id="in-vpc" class="form-control mono" placeholder="Ex.: vpc-1234567890abcdef" />
+              <button class="btn btn-outline-secondary" data-list="vpcs">Listar VPCs</button>
+            </div>
+            <div class="sa-hint">Busque pelas tags Name e selecione uma VPC para preencher automaticamente.</div>
+            <div class="sa-neterr" id="vpc-error" hidden>Erro de rede: Failed to fetch</div>
+            <div class="sa-results" id="vpc-results"></div>
+          </div>
+          <div class="col-md-4">
+            <label class="form-label sa-label">Subnet ID <span class="opt">(opcional)</span></label>
+            <div class="input-group input-group-sm">
+              <input id="in-subnet" class="form-control mono" placeholder="Ex.: subnet-1234567890abcdef" />
+              <button class="btn btn-outline-secondary" data-list="subnets">Listar subnets</button>
+            </div>
+            <div class="sa-hint">Selecione uma subnet dentro da VPC escolhida.</div>
+            <div class="sa-results" id="subnet-results"></div>
+          </div>
+          <div class="col-md-4">
+            <label class="form-label sa-label">Security Group ID <span class="opt">(opcional)</span></label>
+            <div class="input-group input-group-sm">
+              <input id="in-sg" class="form-control mono" placeholder="Ex.: sg-1234567890abcdef" />
+              <button class="btn btn-outline-secondary" data-list="sgs">Listar SGs</button>
+            </div>
+            <div class="sa-hint">Use o nome do grupo ou tags para localizar rapidamente o SG.</div>
+            <div class="sa-results" id="sg-results"></div>
+          </div>
+        </div>
+
+        <!-- Alvo e permissão -->
+        <h6 class="sa-section">Alvo e permissão</h6>
+        <div class="row g-4 mb-3">
+          <div class="col-md-6">
+            <label class="form-label sa-label">Endpoints alvo <span class="opt">(opcional, múltiplos)</span></label>
+            <button class="btn btn-sm btn-outline-secondary" id="btn-list-endpoints">Listar endpoints</button>
+            <div class="sa-hint">Clique em "Selecionar" em cada endpoint da lista para incluí-lo entre os alvos do Pentest (é possível selecionar vários) e em "Verify" para checar a verificação.</div>
+            <div class="sa-endpoints" id="endpoint-list">
+              <div class="text-muted small p-2">Selecione um Space.</div>
+            </div>
+            <div class="sa-hint" id="endpoint-detail">Selecione um target domain para ver detalhes de verificação.</div>
+            <div class="sa-eyebrow mt-2">ALVOS SELECIONADOS (<span id="selected-count">0</span>)</div>
+            <div id="selected-endpoints" class="sa-chips"></div>
+          </div>
+          <div class="col-md-6">
+            <label class="form-label sa-label">Role de serviço <span class="opt">(opcional)</span></label>
+            <div class="input-group input-group-sm">
+              <input id="in-role" class="form-control mono"
+                     placeholder="arn:aws:iam::000000000000:role/role-security-agent-pentest" />
+              <button class="btn btn-outline-secondary" data-list="roles">Listar roles</button>
+            </div>
+            <div class="sa-hint">Escolha a role autorizada para a execução do pentest.</div>
+            <div class="sa-results" id="role-results"></div>
+          </div>
+        </div>
+
+        <!-- Authentication resources -->
+        <div class="d-flex justify-content-between align-items-center">
+          <h6 class="sa-section mb-0">Authentication resources</h6>
+          <button class="btn btn-sm btn-outline-primary" id="btn-add-cred" type="button">+ Add credential</button>
+        </div>
+        <div id="cred-list" class="mt-3"></div>
+
+        <!-- Additional learning resources -->
+        <h6 class="sa-section mt-4">Additional learning resources</h6>
+        <p class="sa-sub">Additional learning resources</p>
+        <p class="sa-hint">Choose files or resource references that improve the agent's understanding of your application.</p>
+        <div class="d-flex justify-content-between align-items-center flex-wrap gap-2 mb-2">
+          <strong>Connected resources (<span id="res-count">0</span>)</strong>
+          <div class="d-flex gap-2 flex-wrap">
+            <input type="file" id="in-file" class="form-control form-control-sm" style="max-width:260px" />
+            <button class="btn btn-sm btn-outline-secondary" id="btn-upload" type="button">Upload files</button>
+            <button class="btn btn-sm btn-outline-secondary" id="btn-list-resources" type="button">Select from existing resources</button>
+          </div>
+        </div>
+        <div class="sa-hint mono">Destino S3: s3://uploads-uva-dev/security-agent-artifacts/&lt;conta&gt;/&lt;space&gt;/&lt;data&gt;/&lt;uuid&gt;-arquivo</div>
+        <input id="in-resource-filter" class="form-control form-control-sm my-2" placeholder="Find resources" hidden />
+        <div id="resource-picker" class="sa-results mb-2" hidden></div>
+        <div class="table-responsive">
+          <table class="table table-sm sa-table mb-0">
+            <thead><tr><th>Name</th><th>Type</th><th class="text-end">Actions</th></tr></thead>
+            <tbody id="tbody-resources">
+              <tr><td colspan="3" class="text-center text-muted py-3">No resources selected for this pentest.</td></tr>
+            </tbody>
+          </table>
+        </div>
+        <div class="sa-hint">Use artifact references or S3 locations to give the pentest more domain knowledge and supporting context.</div>
+
+        <div class="text-end mt-4">
+          <button class="btn btn-outline-secondary" id="btn-cancel-edit" type="button" hidden>Cancelar edição</button>
+          <button class="btn btn-primary" id="btn-create" disabled>Criar Pentest</button>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <!-- ===== Template de credencial ===== -->
+  <template id="cred-tpl">
+    <div class="card sa-cred mb-3" data-cred>
+      <div class="card-body">
+        <div class="d-flex justify-content-between align-items-center mb-3">
+          <strong class="cred-title">Credential1</strong>
+          <div>
+            <button class="btn btn-sm btn-outline-secondary c-edit" type="button">Edit name</button>
+            <button class="btn btn-sm btn-outline-secondary c-remove" type="button">Remove</button>
+          </div>
+        </div>
+
+        <label class="form-label sa-label">Actor identifier</label>
+        <input class="form-control form-control-sm mb-3 c-actor" placeholder="Ex.: Credential1" />
+
+        <div class="form-check">
+          <input class="form-check-input c-mode" type="radio" value="input" checked />
+          <label class="form-check-label fw-medium">Input credentials</label>
+          <div class="sa-hint ms-0">Enter your credentials directly. We'll securely store them in your AWS Secrets Manager on your behalf.</div>
+        </div>
+        <div class="form-check mb-3">
+          <input class="form-check-input c-mode" type="radio" value="advanced" />
+          <label class="form-check-label fw-medium">Advanced setting</label>
+          <div class="sa-hint ms-0">For sensitive credential information, we recommend using the advanced options.</div>
+        </div>
+
+        <!-- Painel: Input credentials -->
+        <div class="c-panel-input">
+          <div class="row g-3">
+            <div class="col-md-6">
+              <label class="form-label sa-label">Username</label>
+              <input class="form-control c-user" placeholder="Enter username" autocomplete="off" />
+            </div>
+            <div class="col-md-6">
+              <label class="form-label sa-label">Password</label>
+              <input class="form-control c-pass" type="password" placeholder="Enter password" autocomplete="new-password" />
+            </div>
+          </div>
+          <label class="form-label sa-label mt-3">2FA - optional</label>
+          <input class="form-control c-totp" placeholder="Enter TOTP secret manually or upload QR code" autocomplete="off" />
+          <div class="sa-hint">Provide your TOTP secret for 2FA-protected apps.</div>
+          <button class="btn btn-outline-secondary w-100 mb-3 c-qr" type="button">Upload QR code</button>
+          <input type="file" accept="image/*" class="c-qr-file" hidden />
+        </div>
+
+        <!-- Painel: Advanced setting -->
+        <div class="c-panel-adv" hidden>
+          <label class="form-label sa-label">Secrets Manager secret ARN</label>
+          <input class="form-control mono c-secretarn" placeholder="arn:aws:secretsmanager:sa-east-1:000000000000:secret:..." />
+          <div class="sa-hint">Referencie um secret já existente. Nenhuma credencial é gravada pelo formulário.</div>
+        </div>
+
+        <label class="form-label sa-label">Access URL</label>
+        <select class="form-select c-accessurl"><option value="">Select target URL</option></select>
+        <div class="sa-hint">Select which URL will be utilizing this credential.</div>
+        <button class="btn btn-outline-secondary w-100 mb-3 c-clear" type="button">Clear</button>
+
+        <label class="form-label sa-label">Agent Space login prompt - optional</label>
+        <textarea class="form-control c-prompt" rows="3"></textarea>
+        <div class="sa-hint">Instruct AWS Security Agent how to access your application using the credentials provided.</div>
+      </div>
+    </div>
+  </template>
+
+  <!-- ===== Modal: Criar / Editar Agent Space ===== -->
+  <div class="modal fade" id="modal-space" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-lg">
+      <div class="modal-content">
+        <div class="modal-header">
+          <h5 class="modal-title" id="modal-space-title">Criar Agent Space</h5>
+          <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Fechar"></button>
+        </div>
+        <div class="modal-body">
+          <label class="form-label sa-label">Nome</label>
+          <input id="sp-name" class="form-control mb-3" placeholder="Ex.: uva-with-role3" />
+          <label class="form-label sa-label">Descrição <span class="opt">(opcional)</span></label>
+          <input id="sp-desc" class="form-control mb-3" placeholder="Pentests do motor de relatório" />
+
+          <h6 class="sa-section">Rede e perímetro</h6>
+          <div class="row g-3 mb-3">
+            <div class="col-md-4">
+              <label class="form-label sa-label">VPC ID <span class="opt">(opcional)</span></label>
+              <div class="input-group input-group-sm">
+                <input id="sp-vpc" class="form-control mono" placeholder="Ex.: vpc-1234567890abcdef" />
+                <button class="btn btn-outline-secondary" type="button" data-list="vpcs"
+                        data-target="#sp-vpc" data-results="#sp-vpc-results" data-error="#sp-vpc-error">Listar VPCs</button>
+              </div>
+              <div class="sa-neterr" id="sp-vpc-error" hidden>Erro de rede: Failed to fetch</div>
+              <div class="sa-results" id="sp-vpc-results"></div>
+            </div>
+            <div class="col-md-4">
+              <label class="form-label sa-label">Subnet ID <span class="opt">(opcional)</span></label>
+              <div class="input-group input-group-sm">
+                <input id="sp-subnet" class="form-control mono" placeholder="Ex.: subnet-1234567890abcdef" />
+                <button class="btn btn-outline-secondary" type="button" data-list="subnets"
+                        data-target="#sp-subnet" data-results="#sp-subnet-results" data-vpc-input="#sp-vpc">Listar subnets</button>
+              </div>
+              <div class="sa-results" id="sp-subnet-results"></div>
+            </div>
+            <div class="col-md-4">
+              <label class="form-label sa-label">Security Group <span class="opt">(opcional)</span></label>
+              <div class="input-group input-group-sm">
+                <input id="sp-sg" class="form-control mono" placeholder="Ex.: sg-1234567890abcdef" />
+                <button class="btn btn-outline-secondary" type="button" data-list="sgs"
+                        data-target="#sp-sg" data-results="#sp-sg-results" data-vpc-input="#sp-vpc">Listar SGs</button>
+              </div>
+              <div class="sa-results" id="sp-sg-results"></div>
+            </div>
+          </div>
+
+          <h6 class="sa-section">Permissão</h6>
+          <label class="form-label sa-label">Role de serviço <span class="opt">(opcional)</span></label>
+          <div class="input-group input-group-sm">
+            <input id="sp-role" class="form-control mono" placeholder="arn:aws:iam::…:role/role-security-agent-pentest" />
+            <button class="btn btn-outline-secondary" type="button" data-list="roles"
+                    data-target="#sp-role" data-results="#sp-role-results">Listar roles</button>
+          </div>
+          <div class="sa-results" id="sp-role-results"></div>
+
+          <h6 class="sa-section">Alvo</h6>
+          <div class="input-group input-group-sm">
+            <input id="sp-endpoint" class="form-control mono" placeholder="Opcional: https://api.exemplo.com" />
+            <button class="btn btn-outline-primary" type="button" id="btn-sp-create-endpoint">+ Criar alvo</button>
+          </div>
+          <div class="input-group input-group-sm mt-2">
+            <select id="sp-endpoint-verification" class="form-select" style="max-width:160px">
+              <option value="DNS_TXT" selected>DNS_TXT</option>
+              <option value="HTTP_ROUTE">HTTP_ROUTE</option>
+              <option value="PRIVATE_VPC">PRIVATE_VPC</option>
+            </select>
+          </div>
+          <div class="sa-hint" id="sp-endpoint-hint">Cria um novo target domain e o associa a este Space assim que ele for criado.</div>
+          <div class="sa-eyebrow mt-2">ALVOS A ASSOCIAR (<span id="sp-endpoints-count">0</span>)</div>
+          <div id="sp-endpoints" class="sa-chips"></div>
+
+          <div class="sa-hint mt-2" id="sp-footer-hint">Nome é obrigatório; os demais associam recursos AWS ao Space (awsResources).</div>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancelar</button>
+          <button type="button" class="btn btn-primary" id="btn-save-space">Criar Space</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="toast-host" id="toast" role="status" aria-live="polite"></div>
+
+  <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/jsqr@1.4.0/dist/jsQR.js"></script>
+  <script src="{{ url_for('static', filename='js/app.js') }}?v={{ js_version }}"></script>
+</body>
+</html>

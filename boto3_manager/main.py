@@ -53,6 +53,12 @@ class SuiteGroup(click.Group):
     help="Conecta no serviço real da AWS (em vez do emulador kumo)"
 )
 @click.option(
+    "--agent-space", "-a", "agent_space_id",
+    default=None,
+    envvar="AGENT_SPACE_ID",
+    help="Sobrescreve o Agent Space da config (o 'pentest-demo-space' fixo não existe na conta real)"
+)
+@click.option(
     "--endpoint", "-e", "endpoint_url",
     default=None,
     envvar="KUMO_ENDPOINT",
@@ -85,7 +91,7 @@ class SuiteGroup(click.Group):
     help="Intervalo entre consultas de status do Job, em segundos"
 )
 @click.pass_context
-def cli(ctx, source, tf_dir, cloud, endpoint_url, region, profile_name, timeout, poll_interval):
+def cli(ctx, source, tf_dir, cloud, agent_space_id, endpoint_url, region, profile_name, timeout, poll_interval):
     """
     AWS SECURITY AGENT DEVSECOPS SUITE (Arquitetura Hexagonal + Click CLI)
     
@@ -128,7 +134,8 @@ def cli(ctx, source, tf_dir, cloud, endpoint_url, region, profile_name, timeout,
         config_source=config_adapter,
         security_agent=boto3_adapter,
         max_wait_seconds=espera,
-        poll_interval_sec=intervalo
+        poll_interval_sec=intervalo,
+        agent_space_override=agent_space_id
     )
 
     # Armazena a instância do Adaptador de Entrada (CLI) no contexto do Click
@@ -152,6 +159,16 @@ def cmd_agent_spaces(ctx):
     """Lista os Agent Spaces da conta, com Code Review, domínios associados e chave KMS."""
     adapter = ctx.obj["adapter"]
     adapter.print_agent_spaces_table()
+
+
+@cli.command("create-agent-space", short_help="[ESPAÇOS] Cria um novo Agent Space na conta AWS")
+@click.option("--name", "-n", required=True, help="Nome do Agent Space a criar")
+@click.option("--description", "-D", default=None, help="Descrição opcional do Agent Space")
+@click.pass_context
+def cmd_create_agent_space(ctx, name, description):
+    """Cria um Agent Space via CreateAgentSpace e devolve o Agent Space ID para usar com --agent-space."""
+    adapter = ctx.obj["adapter"]
+    adapter.create_agent_space(name=name, description=description)
 
 
 @cli.command("jobs", short_help="[CATÁLOGO] Lista os alvos configurados no Terraform/YAML")
@@ -180,12 +197,22 @@ def cmd_run(ctx):
 
 @cli.command("scan", short_help="[DEMO 3] Dispara um Pen-Test pontual contra um alvo informado")
 @click.option("--target", "-t", "target_uri", required=True, help="URI do alvo (ex: http://vulnerable-app.pentest.svc)")
-@click.option("--title", default="Pen-Test sob demanda", show_default=True, help="Título do teste no Agent Space")
+@click.option("--title", default="Pen-Test-sob-demanda", show_default=True, help="Título do teste (só letras, números, hífen e underscore; máx. 100)")
 @click.pass_context
 def cmd_scan(ctx, target_uri, title):
     """Registra, dispara e acompanha um único alvo, sem depender do catálogo configurado."""
     adapter = ctx.obj["adapter"]
     adapter.run_single_scan(target_uri=target_uri, title=title)
+
+
+@cli.command("create-pentest", short_help="[DEMO 3] Cria (registra) um Pen-Test contra um alvo, sem disparar o scan")
+@click.option("--target", "-t", "target_uri", required=True, help="URI do alvo (ex: http://vulnerable-app.pentest.svc)")
+@click.option("--title", default="Pen-Test-sob-demanda", show_default=True, help="Título do teste (só letras, números, hífen e underscore; máx. 100)")
+@click.pass_context
+def cmd_create_pentest(ctx, target_uri, title):
+    """Registra o alvo no Agent Space via CreatePentest e devolve o Pentest ID, sem acionar o motor ofensivo."""
+    adapter = ctx.obj["adapter"]
+    adapter.create_pentest(target_uri=target_uri, title=title)
 
 
 @cli.command("design-review", short_help="[DEMO 1] Audita diagramas e documentos de arquitetura (Blue Team)")

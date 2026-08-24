@@ -289,6 +289,35 @@ class CommandLineAdapter:
         click.echo("  Domínio      : " + click.style(domain, fg="cyan"))
         click.echo("  Descrição    : " + description)
 
+    def create_agent_space(self, name: str, description: str = None):
+        """Cria um Agent Space na conta AWS e exibe o novo Agent Space ID."""
+        click.echo("")
+        click.secho(f"[*] CRIANDO AGENT SPACE '{name}'", fg="bright_blue", bold=True, reverse=True)
+        click.secho("-" * 78, fg="blue")
+        space_id = self.use_case.create_agent_space(name, description)
+        click.echo("")
+        click.secho(f"[SUCESSO] Agent Space criado na conta AWS.", fg="bright_green", bold=True)
+        click.echo("  Agent Space ID: " + click.style(space_id, fg="green", bold=True))
+        click.echo("  Nome          : " + click.style(name, fg="bright_cyan"))
+        if description:
+            click.echo("  Descrição     : " + click.style(description, fg="yellow"))
+        click.secho("  Use-o nas próximas ações com: ", nl=False, fg="bright_black")
+        click.secho(f"--agent-space {space_id}", fg="bright_black", italic=True)
+
+    def create_pentest(self, target_uri: str, title: str):
+        """Cria (registra) um Pen-Test no Agent Space sem disparar o scan, exibindo o Pentest ID."""
+        click.echo("")
+        click.secho(f"[*] CRIANDO PEN-TEST PARA '{target_uri}' (SEM DISPARAR SCAN)", fg="bright_red", bold=True, reverse=True)
+        click.secho("-" * 78, fg="red")
+        pentest_id = self.use_case.create_pentest_target(target_uri, title)
+        click.echo("")
+        click.secho(f"[SUCESSO] Pen-Test registrado no Agent Space da AWS.", fg="bright_green", bold=True)
+        click.echo("  Pentest ID: " + click.style(pentest_id, fg="green", bold=True))
+        click.echo("  Alvo      : " + click.style(target_uri, fg="bright_cyan"))
+        click.echo("  Título    : " + click.style(title, fg="yellow"))
+        click.secho("  Dispare o scan depois com: ", nl=False, fg="bright_black")
+        click.secho(f"scan --target {target_uri}", fg="bright_black", italic=True)
+
     def run_single_scan(self, target_uri: str, title: str):
         """Dispara um Pen-Test pontual contra um alvo informado na linha de comando."""
         click.echo("")

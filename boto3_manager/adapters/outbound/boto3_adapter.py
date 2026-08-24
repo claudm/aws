@@ -120,6 +120,17 @@ class Boto3SecurityAgentAdapter(SecurityAgentPort):
         except (ClientError, BotoCoreError) as exc:
             raise SecurityAgentConnectionError(f"Erro ao listar Agent Spaces: {exc}")
 
+    def create_agent_space(self, name: str, description: Optional[str] = None) -> str:
+        """Cria um Agent Space (só 'name' é obrigatório) e devolve o novo id."""
+        try:
+            params: Dict[str, Any] = {"name": name}
+            if description:
+                params["description"] = description
+            response = self.client.create_agent_space(**params)
+            return str(response["agentSpaceId"])
+        except (ClientError, BotoCoreError) as exc:
+            raise SecurityAgentConnectionError(f"Erro na API AWS CreateAgentSpace para '{name}': {exc}")
+
     # =========================================================================
     # 1. PEN-TESTING (DEMO 3 - RED TEAM)
     # =========================================================================

@@ -1,0 +1,80 @@
+{
+  "vpcs": [
+    {"vpc_id": "vpc-0mock00000000001", "name": "mock-vpc-main", "cidr_block": "10.0.0.0/16", "is_default": true},
+    {"vpc_id": "vpc-0mock00000000002", "name": "mock-vpc-secondary", "cidr_block": "10.1.0.0/16", "is_default": false}
+  ],
+
+  "subnets": [
+    {"subnet_id": "subnet-0mock0000000001", "name": "mock-subnet-a", "vpc_id": "vpc-0mock00000000001", "cidr_block": "10.0.1.0/24", "availability_zone": "{region}a"},
+    {"subnet_id": "subnet-0mock0000000002", "name": "mock-subnet-b", "vpc_id": "vpc-0mock00000000001", "cidr_block": "10.0.2.0/24", "availability_zone": "{region}b"},
+    {"subnet_id": "subnet-0mock0000000003", "name": "mock-subnet-c", "vpc_id": "vpc-0mock00000000002", "cidr_block": "10.1.1.0/24", "availability_zone": "{region}a"}
+  ],
+
+  "security_groups": [
+    {"group_id": "sg-0mock000000000001", "name": "mock-sg-default", "vpc_id": "vpc-0mock00000000001", "description": "Default mock security group"},
+    {"group_id": "sg-0mock000000000002", "name": "mock-sg-pentest", "vpc_id": "vpc-0mock00000000001", "description": "Security group para pentests (mock)"},
+    {"group_id": "sg-0mock000000000003", "name": "mock-sg-secondary", "vpc_id": "vpc-0mock00000000002", "description": "Security group da VPC secundaria (mock)"}
+  ],
+
+  "roles": [
+    {"role_name": "role-security-agent-pentest", "arn": "arn:aws:iam::{account_id}:role/role-security-agent-pentest", "path": "/"},
+    {"role_name": "role-security-agent-codereview", "arn": "arn:aws:iam::{account_id}:role/role-security-agent-codereview", "path": "/"}
+  ],
+
+  "spaces": [
+    {"space_id": "as-e7b3197a-5a60-4083-805f-0b4af6a1c2d3", "name": "UVA-Code-Review", "account_id": "{account_id}", "region": "{region}", "endpoints": []},
+    {"space_id": "as-4dfdcf29-2f57-40a5-a276-5007bcabcd12", "name": "UVA-CERTIFICADO", "account_id": "{account_id}", "region": "{region}", "endpoints": []},
+    {"space_id": "as-f798a171-b036-4b2e-9a8c-d43153aabbcc", "name": "uva-with-role4", "account_id": "{account_id}", "region": "{region}", "endpoints": []},
+    {
+      "space_id": "as-26e63df5-e6c7-47f6-99a1-14a5c64eb565",
+      "name": "uva-with-role3",
+      "account_id": "{account_id}",
+      "region": "{region}",
+      "aws_resources": {
+        "iamRoles": ["arn:aws:iam::{account_id}:role/role-security-agent-pentest"],
+        "vpcs": [
+          {
+            "vpcArn": "vpc-0mock00000000001",
+            "subnetArns": ["subnet-0mock0000000001"],
+            "securityGroupArns": ["sg-0mock000000000002"]
+          }
+        ]
+      },
+      "endpoints": [
+        {"url": "https://motorrelatorio-hom.cloud.itau.com.br", "status": "VERIFIED", "verified_at": "2026-08-19T15:40:00Z", "detail": "HTTP 200"},
+        {"url": "https://hom-sts-int.mbi.cloud.ibf", "status": "SEM STATUS"}
+      ]
+    },
+    {"space_id": "as-ded0c1b7-d808-4feb-8939-2f188dabcdef", "name": "UVA-CHARON", "account_id": "{account_id}", "region": "{region}", "endpoints": []},
+    {"space_id": "as-964346c6-a1eb-4037-a2b9-f2d9bf001122", "name": "uva-with-role2", "account_id": "{account_id}", "region": "{region}", "endpoints": []}
+  ],
+
+  "pentests": [
+    {
+      "id": "pt-afe77afd-439b-41b2-8c3a-1f2e3d4c5b6a",
+      "space_id": "as-26e63df5-e6c7-47f6-99a1-14a5c64eb565",
+      "title": "uva-penetest2",
+      "status": "FAILED",
+      "network": {"vpc_id": "vpc-0mock00000000001", "subnet_id": "subnet-0mock0000000001", "security_group_id": "sg-0mock000000000002"},
+      "target": {"endpoints": ["https://hom-sts-int.mbi.cloud.ibf"], "service_role_arn": "arn:aws:iam::{account_id}:role/role-security-agent-pentest"},
+      "created_at": "2026-08-17T12:15:00Z",
+      "updated_at": "2026-08-17T12:15:00Z"
+    },
+    {
+      "id": "pt-498de368-e7da-4a4b-9d1e-2a3b4c5d6e7f",
+      "space_id": "as-26e63df5-e6c7-47f6-99a1-14a5c64eb565",
+      "title": "uva-sec2",
+      "status": "FAILED",
+      "network": {"vpc_id": "vpc-0mock00000000001", "subnet_id": "subnet-0mock0000000002", "security_group_id": "sg-0mock000000000002"},
+      "target": {"endpoints": ["https://motorrelatorio-hom.cloud.itau.com.br"], "service_role_arn": "arn:aws:iam::{account_id}:role/role-security-agent-pentest"},
+      "created_at": "2026-08-19T15:44:00Z",
+      "updated_at": "2026-08-19T15:44:00Z"
+    }
+  ],
+
+  "resources": [
+    {"space_id": "as-26e63df5-e6c7-47f6-99a1-14a5c64eb565", "name": "escopo-pentest.pdf", "size": 184320, "last_modified": "2026-08-18T09:30:00Z"},
+    {"space_id": "as-26e63df5-e6c7-47f6-99a1-14a5c64eb565", "name": "colecao-postman.json", "size": 20480, "last_modified": "2026-08-18T09:32:00Z"},
+    {"space_id": "as-e7b3197a-5a60-4083-805f-0b4af6a1c2d3", "name": "openapi-uva.yaml", "size": 51200, "last_modified": "2026-08-12T11:05:00Z"}
+  ]
+}
