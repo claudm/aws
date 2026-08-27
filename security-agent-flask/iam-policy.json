@@ -1,0 +1,123 @@
+{
+  "Version": "2012-10-17",
+  "Statement": [
+    {
+      "Sid": "SecurityAgentAgentSpaces",
+      "Effect": "Allow",
+      "Action": [
+        "securityagent:ListAgentSpaces",
+        "securityagent:BatchGetAgentSpaces",
+        "securityagent:CreateAgentSpace",
+        "securityagent:UpdateAgentSpace",
+        "securityagent:ListTagsForResource",
+        "securityagent:TagResource",
+        "securityagent:UntagResource"
+      ],
+      "Resource": "*"
+    },
+    {
+      "Sid": "SecurityAgentArtifacts",
+      "Effect": "Allow",
+      "Action": [
+        "securityagent:AddArtifact",
+        "securityagent:ListArtifacts",
+        "securityagent:GetArtifact",
+        "securityagent:BatchGetArtifactMetadata"
+      ],
+      "Resource": "*"
+    },
+    {
+      "Sid": "SecurityAgentTargetDomains",
+      "Effect": "Allow",
+      "Action": [
+        "securityagent:ListTargetDomains",
+        "securityagent:BatchGetTargetDomains",
+        "securityagent:CreateTargetDomain",
+        "securityagent:VerifyTargetDomain"
+      ],
+      "Resource": "*"
+    },
+    {
+      "Sid": "SecurityAgentPentests",
+      "Effect": "Allow",
+      "Action": [
+        "securityagent:ListPentests",
+        "securityagent:BatchGetPentests",
+        "securityagent:CreatePentest",
+        "securityagent:UpdatePentest",
+        "securityagent:StartPentestJob",
+        "securityagent:ListPentestJobsForPentest"
+      ],
+      "Resource": "*"
+    },
+    {
+      "Sid": "NetworkAndRolesReadOnly",
+      "Effect": "Allow",
+      "Action": [
+        "ec2:DescribeVpcs",
+        "ec2:DescribeSubnets",
+        "ec2:DescribeSecurityGroups",
+        "iam:ListRoles",
+        "sts:GetCallerIdentity"
+      ],
+      "Resource": "*"
+    },
+    {
+      "Sid": "PassServiceRoleToPentest",
+      "Effect": "Allow",
+      "Action": "iam:PassRole",
+      "Resource": "arn:aws:iam::000000000000:role/role-security-agent-pentest",
+      "Condition": {
+        "StringEquals": {
+          "iam:PassedToService": "securityagent.amazonaws.com"
+        }
+      }
+    },
+    {
+      "Sid": "CrossAccountAssumeRole",
+      "Effect": "Allow",
+      "Action": "sts:AssumeRole",
+      "Resource": "arn:aws:iam::*:role/role-security-agent-pentest"
+    },
+    {
+      "Sid": "SecretsAppPrefix",
+      "Effect": "Allow",
+      "Action": [
+        "secretsmanager:CreateSecret",
+        "secretsmanager:PutSecretValue",
+        "secretsmanager:TagResource"
+      ],
+      "Resource": "arn:aws:secretsmanager:sa-east-1:000000000000:secret:security-agent/pentests/*"
+    },
+    {
+      "Sid": "ArtifactsPutObject",
+      "Effect": "Allow",
+      "Action": "s3:PutObject",
+      "Resource": "arn:aws:s3:::uploads-uva-dev/security-agent-artifacts/*"
+    },
+    {
+      "Sid": "ArtifactsListBucket",
+      "Effect": "Allow",
+      "Action": "s3:ListBucket",
+      "Resource": "arn:aws:s3:::uploads-uva-dev",
+      "Condition": {
+        "StringLike": {
+          "s3:prefix": "security-agent-artifacts/*"
+        }
+      }
+    },
+    {
+      "Sid": "DynamoDbStoreBackendOnly",
+      "Effect": "Allow",
+      "Action": [
+        "dynamodb:PutItem",
+        "dynamodb:GetItem",
+        "dynamodb:Scan"
+      ],
+      "Resource": [
+        "arn:aws:dynamodb:sa-east-1:000000000000:table/security-agent-spaces",
+        "arn:aws:dynamodb:sa-east-1:000000000000:table/security-agent-pentests"
+      ]
+    }
+  ]
+}
