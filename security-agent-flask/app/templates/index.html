@@ -61,6 +61,25 @@
             <div id="next-step" class="fw-medium">Carregue os Spaces para começar.</div>
           </div>
         </section>
+
+        <section class="card sa-card mt-4" id="dr-llm-section">
+          <div class="card-body">
+            <h6 class="sa-h">🧠 Modelo do design review</h6>
+            <p class="sa-sub">Qual LLM local faz o threat model (STRIDE) do Security Agent.</p>
+            <label class="form-label sa-label">Backend</label>
+            <select id="dr-backend" class="form-select form-select-sm mb-3">
+              <option value="">seguir o LLM Manager</option>
+            </select>
+            <label class="form-label sa-label">Modelo</label>
+            <select id="dr-model" class="form-select form-select-sm mb-2">
+              <option value="">modelo ativo do backend</option>
+            </select>
+            <p class="sa-hint" id="dr-hint">O threat model precisa devolver um array JSON limpo; um modelo pequeno demais responde stubs e o scan sai vazio.</p>
+            <div class="sa-eyebrow mt-3">EM USO AGORA</div>
+            <div id="dr-current" class="mono">—</div>
+            <button class="btn btn-sm btn-outline-primary mt-3" id="btn-dr-save">Salvar</button>
+          </div>
+        </section>
       </div>
 
       <!-- ===== Direita: Spaces + Pentests ===== -->

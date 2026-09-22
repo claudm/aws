@@ -22,12 +22,74 @@
   ],
 
   "spaces": [
-    {"space_id": "as-e7b3197a-5a60-4083-805f-0b4af6a1c2d3", "name": "UVA-Code-Review", "account_id": "{account_id}", "region": "{region}", "endpoints": []},
-    {"space_id": "as-4dfdcf29-2f57-40a5-a276-5007bcabcd12", "name": "UVA-CERTIFICADO", "account_id": "{account_id}", "region": "{region}", "endpoints": []},
-    {"space_id": "as-f798a171-b036-4b2e-9a8c-d43153aabbcc", "name": "uva-with-role4", "account_id": "{account_id}", "region": "{region}", "endpoints": []},
+    {
+      "space_id": "as-e7b3197a-5a60-4083-805f-0b4af6a1c2d3",
+      "name": "UVA-Code-Review",
+      "description": "Code review dos repositorios da UVA. Sem pentest associado (estado vazio da tabela).",
+      "account_id": "{account_id}",
+      "region": "{region}",
+      "tags": {"app": "security-agent", "env": "dev", "squad": "uva"},
+      "aws_resources": {
+        "iamRoles": ["arn:aws:iam::{account_id}:role/role-security-agent-codereview"],
+        "vpcs": [
+          {
+            "vpcArn": "vpc-0mock00000000001",
+            "subnetArns": ["subnet-0mock0000000001"],
+            "securityGroupArns": ["sg-0mock000000000001"]
+          }
+        ]
+      },
+      "endpoints": [
+        {"url": "https://uva-codereview-dev.cloud.itau.com.br", "status": "VERIFIED", "verified_at": "2026-08-12T11:00:00Z", "detail": "HTTP 200"}
+      ]
+    },
+    {
+      "space_id": "as-4dfdcf29-2f57-40a5-a276-5007bcabcd12",
+      "name": "UVA-CERTIFICADO",
+      "description": "Pentests da emissao de certificado digital em homologacao.",
+      "account_id": "{account_id}",
+      "region": "{region}",
+      "tags": {"app": "security-agent", "env": "hom", "squad": "uva"},
+      "aws_resources": {
+        "iamRoles": ["arn:aws:iam::{account_id}:role/role-security-agent-pentest"],
+        "vpcs": [
+          {
+            "vpcArn": "vpc-0mock00000000001",
+            "subnetArns": ["subnet-0mock0000000002"],
+            "securityGroupArns": ["sg-0mock000000000002"]
+          }
+        ]
+      },
+      "endpoints": [
+        {"url": "https://certificado-hom.cloud.itau.com.br", "status": "VERIFIED", "verified_at": "2026-08-20T10:12:00Z", "detail": "HTTP 200"},
+        {"url": "https://certificado-api-hom.cloud.itau.com.br", "status": "FAILED", "verified_at": "2026-08-20T10:12:30Z", "detail": "HTTP 503"}
+      ]
+    },
+    {
+      "space_id": "as-f798a171-b036-4b2e-9a8c-d43153aabbcc",
+      "name": "uva-with-role4",
+      "description": "Space de teste na VPC secundaria, com role dedicada.",
+      "account_id": "{account_id}",
+      "region": "{region}",
+      "tags": {"app": "security-agent", "env": "dev", "squad": "uva"},
+      "aws_resources": {
+        "iamRoles": ["arn:aws:iam::{account_id}:role/role-security-agent-pentest"],
+        "vpcs": [
+          {
+            "vpcArn": "vpc-0mock00000000002",
+            "subnetArns": ["subnet-0mock0000000003"],
+            "securityGroupArns": ["sg-0mock000000000003"]
+          }
+        ]
+      },
+      "endpoints": [
+        {"url": "https://uva-role4-dev.cloud.itau.com.br", "status": "SEM STATUS"}
+      ]
+    },
     {
       "space_id": "as-26e63df5-e6c7-47f6-99a1-14a5c64eb565",
       "name": "uva-with-role3",
+      "description": "Space de exemplo mais completo: dois alvos, dois pentests e artefatos no S3.",
       "account_id": "{account_id}",
       "region": "{region}",
       "tags": {"app": "security-agent", "env": "hom", "squad": "uva"},
@@ -46,8 +108,49 @@
         {"url": "https://hom-sts-int.mbi.cloud.ibf", "status": "SEM STATUS"}
       ]
     },
-    {"space_id": "as-ded0c1b7-d808-4feb-8939-2f188dabcdef", "name": "UVA-CHARON", "account_id": "{account_id}", "region": "{region}", "endpoints": []},
-    {"space_id": "as-964346c6-a1eb-4037-a2b9-f2d9bf001122", "name": "uva-with-role2", "account_id": "{account_id}", "region": "{region}", "endpoints": []}
+    {
+      "space_id": "as-ded0c1b7-d808-4feb-8939-2f188dabcdef",
+      "name": "UVA-CHARON",
+      "description": "Pentests da plataforma Charon, com execucao em andamento.",
+      "account_id": "{account_id}",
+      "region": "{region}",
+      "tags": {"app": "security-agent", "env": "prd", "squad": "charon"},
+      "aws_resources": {
+        "iamRoles": ["arn:aws:iam::{account_id}:role/role-security-agent-pentest"],
+        "vpcs": [
+          {
+            "vpcArn": "vpc-0mock00000000001",
+            "subnetArns": ["subnet-0mock0000000001"],
+            "securityGroupArns": ["sg-0mock000000000002"]
+          }
+        ]
+      },
+      "endpoints": [
+        {"url": "https://charon.cloud.itau.com.br", "status": "VERIFIED", "verified_at": "2026-08-25T08:05:00Z", "detail": "HTTP 200"},
+        {"url": "https://charon-admin.cloud.itau.com.br", "status": "FAILED", "verified_at": "2026-08-25T08:05:20Z", "detail": "Sem resposta: ConnectTimeout"}
+      ]
+    },
+    {
+      "space_id": "as-964346c6-a1eb-4037-a2b9-f2d9bf001122",
+      "name": "uva-with-role2",
+      "description": "Space legado, mantido so para consulta dos pentests antigos.",
+      "account_id": "{account_id}",
+      "region": "{region}",
+      "tags": {"app": "security-agent", "env": "hom", "squad": "uva"},
+      "aws_resources": {
+        "iamRoles": ["arn:aws:iam::{account_id}:role/role-security-agent-pentest"],
+        "vpcs": [
+          {
+            "vpcArn": "vpc-0mock00000000002",
+            "subnetArns": ["subnet-0mock0000000003"],
+            "securityGroupArns": ["sg-0mock000000000003"]
+          }
+        ]
+      },
+      "endpoints": [
+        {"url": "https://uva-role2-hom.cloud.itau.com.br", "status": "FAILED", "verified_at": "2026-07-30T14:20:00Z", "detail": "HTTP 502"}
+      ]
+    }
   ],
 
   "pentests": [
@@ -58,6 +161,10 @@
       "status": "FAILED",
       "network": {"vpc_id": "vpc-0mock00000000001", "subnet_id": "subnet-0mock0000000001", "security_group_id": "sg-0mock000000000002"},
       "target": {"endpoints": ["https://hom-sts-int.mbi.cloud.ibf"], "service_role_arn": "arn:aws:iam::{account_id}:role/role-security-agent-pentest"},
+      "credentials": [
+        {"actor_identifier": "Credential1", "secret_arn": "arn:aws:secretsmanager:{region}:{account_id}:secret:security-agent/pentests/as-26e63df5-e6c7-47f6-99a1-14a5c64eb565/pt-afe77afd-439b-41b2-8c3a-1f2e3d4c5b6a/Credential1-mock", "access_url": "https://hom-sts-int.mbi.cloud.ibf/login", "has_2fa": false}
+      ],
+      "resources": [],
       "created_at": "2026-08-17T12:15:00Z",
       "updated_at": "2026-08-17T12:15:00Z"
     },
@@ -68,14 +175,96 @@
       "status": "FAILED",
       "network": {"vpc_id": "vpc-0mock00000000001", "subnet_id": "subnet-0mock0000000002", "security_group_id": "sg-0mock000000000002"},
       "target": {"endpoints": ["https://motorrelatorio-hom.cloud.itau.com.br"], "service_role_arn": "arn:aws:iam::{account_id}:role/role-security-agent-pentest"},
+      "credentials": [
+        {"actor_identifier": "Credential1", "secret_arn": "arn:aws:secretsmanager:{region}:{account_id}:secret:security-agent/pentests/as-26e63df5-e6c7-47f6-99a1-14a5c64eb565/pt-498de368-e7da-4a4b-9d1e-2a3b4c5d6e7f/Credential1-mock", "access_url": "https://motorrelatorio-hom.cloud.itau.com.br/login", "has_2fa": true},
+        {"actor_identifier": "Credential2", "secret_arn": "arn:aws:secretsmanager:{region}:{account_id}:secret:security-agent/pentests/as-26e63df5-e6c7-47f6-99a1-14a5c64eb565/pt-498de368-e7da-4a4b-9d1e-2a3b4c5d6e7f/Credential2-mock", "access_url": "https://motorrelatorio-hom.cloud.itau.com.br/admin", "has_2fa": false}
+      ],
+      "resources": [
+        {"name": "escopo-pentest.pdf", "type": "s3", "s3_uri": "s3://{bucket}/{prefix}/{account_id}/as-26e63df5-e6c7-47f6-99a1-14a5c64eb565/escopo-pentest.pdf"},
+        {"name": "colecao-postman.json", "type": "s3", "s3_uri": "s3://{bucket}/{prefix}/{account_id}/as-26e63df5-e6c7-47f6-99a1-14a5c64eb565/colecao-postman.json"}
+      ],
       "created_at": "2026-08-19T15:44:00Z",
       "updated_at": "2026-08-19T15:44:00Z"
+    },
+    {
+      "id": "pt-0c9a41b2-77d5-4a18-8b6e-9c0d1e2f3a4b",
+      "space_id": "as-4dfdcf29-2f57-40a5-a276-5007bcabcd12",
+      "title": "certificado-emissao-completo",
+      "status": "COMPLETED",
+      "network": {"vpc_id": "vpc-0mock00000000001", "subnet_id": "subnet-0mock0000000002", "security_group_id": "sg-0mock000000000002"},
+      "target": {"endpoints": ["https://certificado-hom.cloud.itau.com.br"], "service_role_arn": "arn:aws:iam::{account_id}:role/role-security-agent-pentest"},
+      "credentials": [
+        {"actor_identifier": "Credential1", "secret_arn": "arn:aws:secretsmanager:{region}:{account_id}:secret:security-agent/pentests/as-4dfdcf29-2f57-40a5-a276-5007bcabcd12/pt-0c9a41b2-77d5-4a18-8b6e-9c0d1e2f3a4b/Credential1-mock", "access_url": "https://certificado-hom.cloud.itau.com.br/login", "has_2fa": true}
+      ],
+      "resources": [
+        {"name": "openapi-certificado.yaml", "type": "s3", "s3_uri": "s3://{bucket}/{prefix}/{account_id}/as-4dfdcf29-2f57-40a5-a276-5007bcabcd12/openapi-certificado.yaml"}
+      ],
+      "created_at": "2026-08-20T10:30:00Z",
+      "updated_at": "2026-08-20T13:12:00Z"
+    },
+    {
+      "id": "pt-6b1f8d3e-2c47-4f90-a1d5-8e7c6b5a4d3c",
+      "space_id": "as-4dfdcf29-2f57-40a5-a276-5007bcabcd12",
+      "title": "certificado-api-pendente",
+      "status": "PENDING",
+      "network": {"vpc_id": "vpc-0mock00000000001", "subnet_id": "subnet-0mock0000000002", "security_group_id": "sg-0mock000000000002"},
+      "target": {"endpoints": ["https://certificado-api-hom.cloud.itau.com.br"], "service_role_arn": "arn:aws:iam::{account_id}:role/role-security-agent-pentest"},
+      "credentials": [],
+      "resources": [],
+      "created_at": "2026-08-26T09:05:00Z",
+      "updated_at": "2026-08-26T09:05:00Z"
+    },
+    {
+      "id": "pt-3d5e7f91-4a2b-4c6d-9e8f-1a2b3c4d5e6f",
+      "space_id": "as-ded0c1b7-d808-4feb-8939-2f188dabcdef",
+      "title": "charon-superficie-externa",
+      "status": "RUNNING",
+      "network": {"vpc_id": "vpc-0mock00000000001", "subnet_id": "subnet-0mock0000000001", "security_group_id": "sg-0mock000000000002"},
+      "target": {"endpoints": ["https://charon.cloud.itau.com.br"], "service_role_arn": "arn:aws:iam::{account_id}:role/role-security-agent-pentest"},
+      "credentials": [
+        {"actor_identifier": "Credential1", "secret_arn": "arn:aws:secretsmanager:{region}:{account_id}:secret:security-agent/pentests/as-ded0c1b7-d808-4feb-8939-2f188dabcdef/pt-3d5e7f91-4a2b-4c6d-9e8f-1a2b3c4d5e6f/Credential1-mock", "access_url": "https://charon.cloud.itau.com.br/login", "has_2fa": false}
+      ],
+      "resources": [
+        {"name": "arquitetura-charon.pdf", "type": "s3", "s3_uri": "s3://{bucket}/{prefix}/{account_id}/as-ded0c1b7-d808-4feb-8939-2f188dabcdef/arquitetura-charon.pdf"}
+      ],
+      "created_at": "2026-08-27T07:40:00Z",
+      "updated_at": "2026-08-27T07:41:00Z"
+    },
+    {
+      "id": "pt-9e8d7c6b-5a4f-4e3d-2c1b-0a9f8e7d6c5b",
+      "space_id": "as-f798a171-b036-4b2e-9a8c-d43153aabbcc",
+      "title": "role4-smoke-test",
+      "status": "PENDING",
+      "network": {"vpc_id": "vpc-0mock00000000002", "subnet_id": "subnet-0mock0000000003", "security_group_id": "sg-0mock000000000003"},
+      "target": {"endpoints": ["https://uva-role4-dev.cloud.itau.com.br"], "service_role_arn": "arn:aws:iam::{account_id}:role/role-security-agent-pentest"},
+      "credentials": [],
+      "resources": [],
+      "created_at": "2026-08-24T16:00:00Z",
+      "updated_at": "2026-08-24T16:00:00Z"
+    },
+    {
+      "id": "pt-1a2b3c4d-5e6f-4708-9a1b-2c3d4e5f6071",
+      "space_id": "as-964346c6-a1eb-4037-a2b9-f2d9bf001122",
+      "title": "role2-legado",
+      "status": "COMPLETED",
+      "network": {"vpc_id": "vpc-0mock00000000002", "subnet_id": "subnet-0mock0000000003", "security_group_id": "sg-0mock000000000003"},
+      "target": {"endpoints": ["https://uva-role2-hom.cloud.itau.com.br"], "service_role_arn": "arn:aws:iam::{account_id}:role/role-security-agent-pentest"},
+      "credentials": [
+        {"actor_identifier": "Credential1", "secret_arn": "arn:aws:secretsmanager:{region}:{account_id}:secret:security-agent/pentests/as-964346c6-a1eb-4037-a2b9-f2d9bf001122/pt-1a2b3c4d-5e6f-4708-9a1b-2c3d4e5f6071/Credential1-mock", "access_url": "https://uva-role2-hom.cloud.itau.com.br/login", "has_2fa": false}
+      ],
+      "resources": [],
+      "created_at": "2026-07-30T14:30:00Z",
+      "updated_at": "2026-07-30T18:05:00Z"
     }
   ],
 
   "resources": [
     {"space_id": "as-26e63df5-e6c7-47f6-99a1-14a5c64eb565", "name": "escopo-pentest.pdf", "size": 184320, "last_modified": "2026-08-18T09:30:00Z"},
     {"space_id": "as-26e63df5-e6c7-47f6-99a1-14a5c64eb565", "name": "colecao-postman.json", "size": 20480, "last_modified": "2026-08-18T09:32:00Z"},
-    {"space_id": "as-e7b3197a-5a60-4083-805f-0b4af6a1c2d3", "name": "openapi-uva.yaml", "size": 51200, "last_modified": "2026-08-12T11:05:00Z"}
+    {"space_id": "as-e7b3197a-5a60-4083-805f-0b4af6a1c2d3", "name": "openapi-uva.yaml", "size": 51200, "last_modified": "2026-08-12T11:05:00Z"},
+    {"space_id": "as-4dfdcf29-2f57-40a5-a276-5007bcabcd12", "name": "openapi-certificado.yaml", "size": 73728, "last_modified": "2026-08-20T10:20:00Z"},
+    {"space_id": "as-4dfdcf29-2f57-40a5-a276-5007bcabcd12", "name": "matriz-de-atores.csv", "size": 4096, "last_modified": "2026-08-20T10:22:00Z"},
+    {"space_id": "as-ded0c1b7-d808-4feb-8939-2f188dabcdef", "name": "arquitetura-charon.pdf", "size": 962560, "last_modified": "2026-08-26T18:44:00Z"},
+    {"space_id": "as-f798a171-b036-4b2e-9a8c-d43153aabbcc", "name": "notas-de-escopo.md", "size": 2048, "last_modified": "2026-08-24T15:50:00Z"}
   ]
 }

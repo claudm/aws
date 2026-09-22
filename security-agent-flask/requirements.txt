@@ -6,3 +6,4 @@ boto3>=1.40  # securityagent exige boto3 recente (API 2025-09-06)
 httpx>=0.27
 python-dotenv>=1.0
 gunicorn>=22.0
+moto[ec2,iam,s3,secretsmanager]>=5.0  # dev (SA_BACKEND=memory): AWS falsa para EC2/IAM/S3/Secrets

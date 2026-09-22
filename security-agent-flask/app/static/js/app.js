@@ -634,6 +634,75 @@ async function saveSpace() {
   finally { btn.disabled = false; btn.textContent = state.editingSpaceId ? "Salvar alterações" : "Criar Space"; }
 }
 
+
+// ---- Modelo do design review -------------------------------------------
+// O scan de threat model escolhe seu proprio backend/modelo, separado do que
+// o LLM Manager do Bedrock usa: STRIDE precisa de um modelo que devolva JSON
+// parseavel, que nem sempre e' o melhor para chat. Vazio nos dois campos
+// significa "seguir o LLM Manager".
+async function loadDesignReviewLLM() {
+  let cfg;
+  try {
+    cfg = await api("/api/llm/design-review");
+  } catch (e) {
+    // Sem kumo na frente a secao nao tem o que oferecer; desabilitar e' mais
+    // honesto do que deixar controles que nao gravam nada.
+    $("#dr-backend").disabled = $("#dr-model").disabled = $("#btn-dr-save").disabled = true;
+    $("#dr-current").textContent = "indisponível";
+    $("#dr-hint").textContent = e.message;
+    return;
+  }
+  state.drBackends = cfg.backends || [];
+  const sel = $("#dr-backend");
+  sel.innerHTML = "";
+  sel.appendChild(new Option(`seguir o LLM Manager (${cfg.effectiveBackend || "?"})`, ""));
+  state.drBackends.forEach((b) => sel.appendChild(new Option(b, b)));
+  sel.value = cfg.backend || "";
+  await loadDesignReviewModels(cfg.model || "");
+  renderDesignReviewCurrent(cfg);
+}
+
+async function loadDesignReviewModels(selected) {
+  const backend = $("#dr-backend").value || (state.drEffective || "");
+  const sel = $("#dr-model");
+  sel.innerHTML = "";
+  sel.appendChild(new Option("modelo ativo do backend", ""));
+  if (!backend) { sel.value = ""; return; }
+  try {
+    const tags = await api(`/api/llm/models?backend=${encodeURIComponent(backend)}`);
+    (tags.models || []).forEach((m) => sel.appendChild(new Option(m.name, m.name)));
+  } catch {
+    // Backend configurado mas fora do ar: manter o valor atual digitado em vez
+    // de apagar a escolha so' porque a lista nao veio.
+    if (selected) sel.appendChild(new Option(`${selected} (lista indisponível)`, selected));
+  }
+  sel.value = selected || "";
+}
+
+function renderDesignReviewCurrent(cfg) {
+  state.drEffective = cfg.effectiveBackend || "";
+  const backend = cfg.backend || `${cfg.effectiveBackend || "?"} (do LLM Manager)`;
+  const model = cfg.model || "modelo ativo do backend";
+  $("#dr-current").textContent = `${backend} · ${model}`;
+}
+
+async function saveDesignReviewLLM() {
+  const btn = $("#btn-dr-save");
+  btn.disabled = true;
+  try {
+    const cfg = await api("/api/llm/design-review", {
+      method: "PUT",
+      body: { backend: $("#dr-backend").value, model: $("#dr-model").value },
+    });
+    renderDesignReviewCurrent(cfg);
+    toast("Modelo do design review salvo.", "ok");
+  } catch (e) {
+    toast(e.message, "err");
+  } finally {
+    btn.disabled = false;
+  }
+}
+
 document.addEventListener("DOMContentLoaded", () => {
   $("#btn-load-spaces").addEventListener("click", loadSpaces);
   $("#btn-save-space").addEventListener("click", saveSpace);
@@ -657,4 +726,7 @@ document.addEventListener("DOMContentLoaded", () => {
   renderSpaceTags();
   addCredential("Credential1");  // começa com uma credencial, como na tela
   renderConnectedResources();
+  $("#btn-dr-save").addEventListener("click", saveDesignReviewLLM);
+  $("#dr-backend").addEventListener("change", () => loadDesignReviewModels(""));
+  loadDesignReviewLLM();
 });

@@ -1,27 +1,22 @@
-from flask import Blueprint, jsonify, request
+"""Rede (EC2): VPCs, subnets e security groups."""
+from flask import jsonify, request
 
 from ..aws import list_security_groups, list_subnets, list_vpcs
-from ..config import get_settings
 from ..validation import dump_list
-
-bp = Blueprint("network", __name__, url_prefix="/api/network")
-
-
-def _region() -> str:
-    return request.args.get("region") or get_settings().aws_region
+from . import _region, bp
 
 
-@bp.get("/vpcs")
+@bp.get("/network/vpcs")
 def get_vpcs():
     return jsonify(dump_list(list_vpcs(_region(), request.args.get("q"))))
 
 
-@bp.get("/vpcs/<vpc_id>/subnets")
+@bp.get("/network/vpcs/<vpc_id>/subnets")
 def get_subnets(vpc_id: str):
     return jsonify(dump_list(list_subnets(_region(), vpc_id)))
 
 
-@bp.get("/security-groups")
+@bp.get("/network/security-groups")
 def get_security_groups():
     return jsonify(
         dump_list(

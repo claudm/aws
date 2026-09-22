@@ -1,0 +1,39 @@
+region           = "sa-east-1"
+agent_space_name = "uva-with-role3"
+agent_space_description = "Space de pentest da UVA"
+
+tags = {
+  app   = "security-agent"
+  owner = "uva"
+}
+
+target_domains    = ["app.exemplo.com.br"]
+route53_zone_name = "exemplo.com.br" # vazio = publique o TXT e verifique na mao
+
+pentest_title     = "UVA-Pentest"
+pentest_endpoints = ["https://app.exemplo.com.br/"]
+
+vpc_config = {
+  vpc_id             = "vpc-0123456789abcdef0"
+  subnet_ids         = ["subnet-0123456789abcdef0"]
+  security_group_ids = ["sg-0123456789abcdef0"]
+}
+
+artifacts = [
+  { path = "../docs/arquitetura.png", artifact_type = "PNG", as_document = true },
+  { path = "../docs/openapi.yaml", artifact_type = "YAML" },
+]
+
+# Sensivel: use TF_VAR_actors ou um .auto.tfvars fora do git.
+actors = [
+  {
+    identifier  = "tester"
+    description = "Usuario de teste"
+    uris        = ["https://app.exemplo.com.br/login"]
+    username    = "tester@exemplo.com.br"
+    password    = "troque-me"
+    totp_secret = ""
+  },
+]
+
+start_pentest_job = false

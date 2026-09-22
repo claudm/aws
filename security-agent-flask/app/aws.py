@@ -1,4 +1,12 @@
-"""Wrappers boto3. Traduz erros da AWS em ApiError (vira JSON no handler)."""
+"""Chamadas AWS: sessão/credencial, EC2, IAM, S3 e Secrets Manager.
+
+Implementação única — não há versão "de mock" destas funções. Em dev quem
+responde por baixo é o moto (ver `mock_aws.py`), então este mesmo código roda
+nos dois ambientes.
+
+O serviço `securityagent`, que o moto não cobre, fica em `securityagent.py` e
+tem backend próprio em `backends/`.
+"""
 from __future__ import annotations
 
 import json
@@ -12,19 +20,8 @@ from botocore.exceptions import BotoCoreError, ClientError, NoCredentialsError
 
 from .config import get_settings
 from .errors import ApiError
-from .mock_aws import get_mock_aws_client
-from .schemas import (
-    PresignUploadResponse,
-    ResourceObject,
-    RoleOut,
-    SecurityGroupOut,
-    SubnetOut,
-    VpcOut,
-)
+from .schemas import ResourceObject, RoleOut, SecurityGroupOut, SubnetOut, VpcOut
 
-
-def _mock() -> bool:
-    return get_settings().sa_backend == "memory"
 
 logger = logging.getLogger("security-agent.aws")
 
@@ -85,13 +82,6 @@ def _aws_error(exc: Exception, ctx: str) -> ApiError:
     return ApiError(502, f"{ctx}: {exc}")
 
 
-def _tag_name(tags: list[dict] | None) -> str | None:
-    for t in tags or []:
-        if t.get("Key") == "Name":
-            return t.get("Value")
-    return None
-
-
 # ---- STS ----
 def caller_account(region: str | None = None, account_id: str | None = None) -> str:
     try:
@@ -125,10 +115,15 @@ def validate_role_arn_account(account_id: str, role_arn: str | None) -> None:
         )
 
 
+def _tag_name(tags: list[dict] | None) -> str | None:
+    for t in tags or []:
+        if t.get("Key") == "Name":
+            return t.get("Value")
+    return None
+
+
 # ---- EC2 ----
 def list_vpcs(region: str, q: str | None = None) -> list[VpcOut]:
-    if _mock():
-        return get_mock_aws_client().list_vpcs(q)
     try:
         resp = _client("ec2", region).describe_vpcs()
     except (ClientError, BotoCoreError) as exc:
@@ -150,8 +145,6 @@ def list_vpcs(region: str, q: str | None = None) -> list[VpcOut]:
 
 
 def list_subnets(region: str, vpc_id: str) -> list[SubnetOut]:
-    if _mock():
-        return get_mock_aws_client().list_subnets(vpc_id)
     try:
         resp = _client("ec2", region).describe_subnets(
             Filters=[{"Name": "vpc-id", "Values": [vpc_id]}]
@@ -173,8 +166,6 @@ def list_subnets(region: str, vpc_id: str) -> list[SubnetOut]:
 def list_security_groups(
     region: str, vpc_id: str | None = None, q: str | None = None
 ) -> list[SecurityGroupOut]:
-    if _mock():
-        return get_mock_aws_client().list_security_groups(vpc_id, q)
     filters = [{"Name": "vpc-id", "Values": [vpc_id]}] if vpc_id else []
     try:
         resp = _client("ec2", region).describe_security_groups(Filters=filters)
@@ -198,8 +189,6 @@ def list_security_groups(
 
 # ---- IAM ----
 def list_roles(region: str, q: str | None = None) -> list[RoleOut]:
-    if _mock():
-        return get_mock_aws_client().list_roles(q)
     settings = get_settings()
     needle = (q or settings.role_name_filter or "").lower()
     out: list[RoleOut] = []
@@ -221,9 +210,6 @@ def store_credential(
     region: str, space_id: str, pentest_id: str, actor_identifier: str, payload: dict
 ) -> str:
     settings = get_settings()
-    if settings.store_backend != "dynamodb":
-        # Modo mock: ARN fake, a credencial não sai do processo.
-        return get_mock_aws_client().store_credential(region, space_id, pentest_id, actor_identifier)
     safe_actor = actor_identifier.replace("/", "_").replace(" ", "-")
     name = f"{settings.secrets_prefix}/{space_id}/{pentest_id}/{safe_actor}"
     client = _client("secretsmanager", region)
@@ -254,29 +240,7 @@ def _artifact_key(account_id: str, space_id: str, filename: str) -> str:
     )
 
 
-def presign_upload(
-    region: str, account_id: str, space_id: str, filename: str, content_type: str | None
-) -> PresignUploadResponse:
-    if _mock():
-        return get_mock_aws_client().presign_upload(space_id, filename, content_type)
-    settings = get_settings()
-    bucket = settings.s3_artifacts_bucket
-    key = _artifact_key(account_id, space_id, filename)
-    params = {"Bucket": bucket, "Key": key}
-    if content_type:
-        params["ContentType"] = content_type
-    try:
-        url = _client("s3", region).generate_presigned_url("put_object", Params=params, ExpiresIn=3600)
-    except (ClientError, BotoCoreError) as exc:
-        raise _aws_error(exc, "Falha ao gerar URL de upload S3")
-    return PresignUploadResponse(
-        url=url, content_type=content_type, key=key, s3_uri=f"s3://{bucket}/{key}"
-    )
-
-
 def list_resources(region: str, space_id: str) -> list[ResourceObject]:
-    if _mock():
-        return get_mock_aws_client().list_resources(space_id)
     settings = get_settings()
     bucket = settings.s3_artifacts_bucket
     prefix = f"{settings.s3_artifacts_prefix}/"

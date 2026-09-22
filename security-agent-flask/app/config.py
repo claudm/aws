@@ -7,7 +7,6 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 class Settings(BaseSettings):
     model_config = SettingsConfigDict(env_file=".env", extra="ignore")
 
-    store_backend: Literal["memory", "dynamodb"] = "memory"
     # Fonte de Spaces/Pentests/Endpoints:
     #   securityagent -> API real AWS Security Agent (boto3)
     #   memory        -> dados de exemplo (dev/local, sem AWS)
@@ -20,9 +19,6 @@ class Settings(BaseSettings):
     # (arn:aws:iam::<conta informada>:role/<este nome>). Precisa existir e
     # confiar neste backend em cada conta que o usuário queira acessar.
     cross_account_role_name: str = "role-security-agent-pentest"
-
-    ddb_spaces_table: str = "security-agent-spaces"
-    ddb_pentests_table: str = "security-agent-pentests"
 
     s3_artifacts_bucket: str = "uploads-uva-dev"
     s3_artifacts_prefix: str = "security-agent-artifacts"
@@ -41,6 +37,18 @@ class Settings(BaseSettings):
 
     cors_origins: str = ""
     flask_secret_key: str = "change-me"
+
+    # Base do kumo para as rotas /_kumo/* (escolha de LLM do design review).
+    # Nao sao chamadas AWS, entao o boto3 nao serve e o endpoint precisa ser
+    # explicito. Por padrao usa o mesmo AWS_ENDPOINT_URL que o boto3 ja le do
+    # ambiente; KUMO_ENDPOINT sobrepoe quando o kumo estiver em outro lugar.
+    aws_endpoint_url: str | None = None
+    kumo_endpoint: str | None = None
+
+    @property
+    def kumo_base(self) -> str | None:
+        base = self.kumo_endpoint or self.aws_endpoint_url
+        return base.rstrip("/") if base else None
 
     @property
     def cors_origin_list(self) -> list[str]:

@@ -1,10 +1,10 @@
+"""Página principal: `GET /` renderiza `templates/index.html`."""
 import os
 
-from flask import Blueprint, current_app, render_template
+from flask import current_app, render_template
 
 from ..config import get_settings
-
-bp = Blueprint("ui", __name__)
+from . import bp
 
 REGION_OPTIONS = ["sa-east-1", "us-east-1", "us-west-2", "eu-west-1"]
 
