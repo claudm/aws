@@ -1,0 +1,124 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <h1><i class="bi bi-play-circle me-2"></i>Novo Scan</h1>
+    <a href="{{ url_for('index') }}" class="btn btn-outline-secondary">
+        <i class="bi bi-arrow-left me-1"></i>Voltar
+    </a>
+</div>
+
+<div class="row">
+    <div class="col-lg-8">
+        <form method="POST" class="card">
+            <div class="card-header">
+                <h5 class="mb-0"><i class="bi bi-gear me-2"></i>Configuração do Scan</h5>
+            </div>
+            <div class="card-body">
+                <div class="row mb-3">
+                    <label class="col-sm-2 col-form-label">Perfil AWS</label>
+                    <div class="col-sm-10">
+                        <input type="text" class="form-control" name="profile" placeholder="default (usa ~/.aws/credentials)">
+                        <div class="form-text">Perfil do ~/.aws/config. Deixe vazio para usar credenciais padrão.</div>
+                    </div>
+                </div>
+                
+                <div class="row mb-3">
+                    <label class="col-sm-2 col-form-label">Role ARN</label>
+                    <div class="col-sm-10">
+                        <input type="text" class="form-control" name="role_arn" placeholder="arn:aws:iam::123456789012:role/PostureScanReadOnly">
+                        <div class="form-text">ARN da role para cross-account scan.</div>
+                    </div>
+                </div>
+                
+                <div class="row mb-3">
+                    <label class="col-sm-2 col-form-label">External ID</label>
+                    <div class="col-sm-10">
+                        <input type="text" class="form-control" name="external_id" placeholder="Opcional">
+                        <div class="form-text">External ID exigido pela trust policy da role.</div>
+                    </div>
+                </div>
+                
+                <div class="row mb-3">
+                    <label class="col-sm-2 col-form-label">Regiões</label>
+                    <div class="col-sm-10">
+                        <input type="text" class="form-control" name="regions" placeholder="us-east-1 sa-east-1 (vazio = todas habilitadas)">
+                        <div class="form-text">Lista de regiões separadas por espaço.</div>
+                    </div>
+                </div>
+                
+                <div class="row mb-3">
+                    <label class="col-sm-2 col-form-label">Pilares</label>
+                    <div class="col-sm-10">
+                        <div class="form-check form-check-inline">
+                            <input class="form-check-input" type="checkbox" name="pillars" value="security" id="pillar_security" checked>
+                            <label class="form-check-label" for="pillar_security">Segurança</label>
+                        </div>
+                        <div class="form-check form-check-inline">
+                            <input class="form-check-input" type="checkbox" name="pillars" value="reliability" id="pillar_reliability" checked>
+                            <label class="form-check-label" for="pillar_reliability">Confiabilidade</label>
+                        </div>
+                        <div class="form-check form-check-inline">
+                            <input class="form-check-input" type="checkbox" name="pillars" value="cost_optimization" id="pillar_cost" checked>
+                            <label class="form-check-label" for="pillar_cost">Otimização de Custo</label>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="row mb-3">
+                    <label class="col-sm-2 col-form-label">Serviços</label>
+                    <div class="col-sm-10">
+                        <input type="text" class="form-control" name="services" placeholder="ec2 s3 rds iam (vazio = todos)">
+                        <div class="form-text">Filtrar por serviço AWS. Separados por espaço.</div>
+                    </div>
+                </div>
+                
+                <div class="row mb-3">
+                    <label class="col-sm-2 col-form-label">Severidade Mínima</label>
+                    <div class="col-sm-10">
+                        <select class="form-select" name="min_severity">
+                            <option value="info">Info</option>
+                            <option value="low">Low</option>
+                            <option value="medium" selected>Medium</option>
+                            <option value="high">High</option>
+                            <option value="critical">Critical</option>
+                        </select>
+                    </div>
+                </div>
+                
+                <div class="row mb-3">
+                    <label class="col-sm-2 col-form-label">Workers</label>
+                    <div class="col-sm-10">
+                        <input type="number" class="form-control" name="workers" value="8" min="1" max="20">
+                        <div class="form-text">Número de regiões processadas em paralelo (padrão: 8).</div>
+                    </div>
+                </div>
+                
+                <div class="d-grid gap-2 d-md-flex justify-content-md-end">
+                    <a href="{{ url_for('index') }}" class="btn btn-secondary">Cancelar</a>
+                    <button type="submit" class="btn btn-primary">
+                        <i class="bi bi-play-fill me-1"></i>Executar Scan
+                    </button>
+                </div>
+            </div>
+        </form>
+    </div>
+    
+    <div class="col-lg-4">
+        <div class="card">
+            <div class="card-header">
+                <h5 class="mb-0"><i class="bi bi-info-circle me-2"></i>Dicas</h5>
+            </div>
+            <div class="card-body">
+                <ul class="mb-0 small">
+                    <li>Use <strong>--profile</strong> para credenciais específicas</li>
+                    <li>Para cross-account, configure <strong>Role ARN</strong> e <strong>External ID</strong></li>
+                    <li>Limite <strong>regiões</strong> para scans mais rápidos</li>
+                    <li>Use <strong>--min-severity high</strong> para focar no crítico</li>
+                    <li>O scan salva resultados automaticamente em <code>ui/scans/</code></li>
+                </ul>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

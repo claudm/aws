@@ -1,0 +1,153 @@
+{% extends "base.html" %}
+
+{% block title %}{{ finding.title }} - scanstacktestcloud{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <h1 class="h3 mb-0"><i class="bi bi-search me-2"></i>Detalhes do Achado</h1>
+    <div>
+        <a href="{{ url_for('results', filename=filename) }}" class="btn btn-outline-secondary">
+            <i class="bi bi-arrow-left me-1"></i>Voltar aos Resultados
+        </a>
+    </div>
+</div>
+
+<!-- Finding Header -->
+<div class="card mb-4">
+    <div class="card-body">
+        <div class="d-flex justify-content-between align-items-start mb-3">
+            <h2 class="h4 mb-0">{{ finding.title }}</h2>
+            <span class="badge severity-{{ finding.severity|lower }} fs-6">{{ severity_label }}</span>
+        </div>
+        <div class="row g-3">
+            <div class="col-md-3">
+                <div class="text-muted small text-uppercase">Severity</div>
+                <span class="badge severity-{{ finding.severity|lower }}">{{ severity_label }}</span>
+            </div>
+            <div class="col-md-3">
+                <div class="text-muted small text-uppercase">Pillar</div>
+                <span class="badge bg-{{ pillar_color }}">{{ pillar_label }}</span>
+            </div>
+            <div class="col-md-3">
+                <div class="text-muted small text-uppercase">Check ID</div>
+                <code>{{ finding.check_id }}</code>
+            </div>
+            <div class="col-md-3">
+                <div class="text-muted small text-uppercase">Resource</div>
+                <code class="small">{{ finding.resource_id }}</code>
+            </div>
+            <div class="col-md-3">
+                <div class="text-muted small text-uppercase">Best Practice</div>
+                {% if finding.well_architected %}
+                    <code>{{ finding.well_architected }}</code>
+                {% else %}
+                    <span class="text-muted">—</span>
+                {% endif %}
+            </div>
+            <div class="col-md-3">
+                <div class="text-muted small text-uppercase">Região</div>
+                <span class="badge bg-secondary">{{ finding.region }}</span>
+            </div>
+            <div class="col-md-3">
+                <div class="text-muted small text-uppercase">Risk Score</div>
+                {% if finding.risk_score is not none %}
+                    <span class="badge {% if finding.risk_score >= 80 %}bg-danger{% elif finding.risk_score >= 60 %}bg-warning{% elif finding.risk_score >= 40 %}bg-info{% else %}bg-success{% endif %}">
+                        {{ "%.1f"|format(finding.risk_score) }}
+                    </span>
+                {% else %}
+                    <span class="text-muted">—</span>
+                {% endif %}
+            </div>
+            <div class="col-md-3">
+                <div class="text-muted small text-uppercase">Serviço</div>
+                <code>{{ finding.service or '—' }}</code>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- What we found -->
+<div class="card mb-4">
+    <div class="card-header">
+        <h5 class="mb-0"><i class="bi bi-exclamation-triangle me-2 text-danger"></i>O que encontramos</h5>
+    </div>
+    <div class="card-body">
+        <p class="mb-0">{{ finding.description }}</p>
+        {% if finding.monthly_waste_usd and finding.monthly_waste_usd > 0 %}
+        <div class="alert alert-warning mt-3 mb-0">
+            <i class="bi bi-currency-dollar me-1"></i>
+            <strong>Desperdício estimado:</strong> ${{ "%.2f"|format(finding.monthly_waste_usd) }}/mês
+        </div>
+        {% endif %}
+    </div>
+</div>
+
+<!-- What to do -->
+<div class="card mb-4">
+    <div class="card-header">
+        <h5 class="mb-0"><i class="bi bi-tools me-2 text-success"></i>O que fazer</h5>
+    </div>
+    <div class="card-body">
+        <p class="mb-0">{{ finding.remediation }}</p>
+        {% if finding.doc_url %}
+        <a href="{{ finding.doc_url }}" target="_blank" class="btn btn-sm btn-outline-primary mt-3">
+            <i class="bi bi-box-arrow-up-right me-1"></i>Documentação AWS
+        </a>
+        {% endif %}
+    </div>
+</div>
+
+<!-- Resource ARN -->
+{% if finding.resource_arn %}
+<div class="card mb-4">
+    <div class="card-header">
+        <h5 class="mb-0"><i class="bi bi-link-45deg me-2"></i>Recurso</h5>
+    </div>
+    <div class="card-body">
+        <code>{{ finding.resource_arn }}</code>
+    </div>
+</div>
+{% endif %}
+
+<!-- Evidence -->
+{% if finding.evidence and finding.evidence|length > 0 %}
+<div class="card mb-4">
+    <div class="card-header">
+        <h5 class="mb-0"><i class="bi bi-clipboard-data me-2"></i>Evidências</h5>
+    </div>
+    <div class="card-body">
+        <pre class="bg-light p-3 rounded small mb-0">{{ finding.evidence|tojson(indent=2) }}</pre>
+    </div>
+</div>
+{% endif %}
+
+<!-- Exposure -->
+{% if finding.exposure and finding.exposure|length > 0 %}
+<div class="card mb-4">
+    <div class="card-header">
+        <h5 class="mb-0"><i class="bi bi-shield-exclamation me-2"></i>Fatores de Exposição</h5>
+    </div>
+    <div class="card-body">
+        {% for e in finding.exposure %}
+        <span class="badge bg-secondary me-1">{{ e }}</span>
+        {% endfor %}
+    </div>
+</div>
+{% endif %}
+
+<!-- Navigation between findings -->
+<div class="d-flex justify-content-between">
+    {% if index > 0 %}
+    <a href="{{ url_for('finding_detail', filename=filename, index=index-1) }}" class="btn btn-outline-secondary">
+        <i class="bi bi-chevron-left me-1"></i>Achado anterior
+    </a>
+    {% else %}
+    <span></span>
+    {% endif %}
+    {% if index < data.findings|length - 1 %}
+    <a href="{{ url_for('finding_detail', filename=filename, index=index+1) }}" class="btn btn-outline-secondary">
+        Próximo achado<i class="bi bi-chevron-right ms-1"></i>
+    </a>
+    {% endif %}
+</div>
+{% endblock %}

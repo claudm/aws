@@ -1,0 +1,96 @@
+AWSTemplateFormatVersion: "2010-09-09"
+Description: >
+  Role somente leitura para o posture scan. Não concede nenhuma permissão de
+  escrita e não expõe conteúdo de objetos S3, itens de DynamoDB ou dados de banco.
+
+Parameters:
+  ScannerPrincipal:
+    Type: String
+    Description: ARN da conta ou role que vai assumir esta role (ex. arn:aws:iam::111122223333:root)
+  ExternalId:
+    Type: String
+    NoEcho: true
+    MinLength: 16
+    Description: Segredo compartilhado exigido no AssumeRole (protege contra confused deputy)
+  RoleName:
+    Type: String
+    Default: PostureScanReadOnly
+  MaxSessionSeconds:
+    Type: Number
+    Default: 3600
+    MinValue: 900
+    MaxValue: 14400
+
+Resources:
+  ScanRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: !Ref RoleName
+      MaxSessionDuration: !Ref MaxSessionSeconds
+      Description: Read-only posture scanning (security, reliability, cost)
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Principal:
+              AWS: !Ref ScannerPrincipal
+            Action: sts:AssumeRole
+            Condition:
+              StringEquals:
+                sts:ExternalId: !Ref ExternalId
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/SecurityAudit
+        - arn:aws:iam::aws:policy/job-function/ViewOnlyAccess
+      Policies:
+        - PolicyName: PostureScanExtras
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Sid: ReadOnlyExtras
+                Effect: Allow
+                Action:
+                  - access-analyzer:ListAnalyzers
+                  - budgets:ViewBudget
+                  - ce:GetCostAndUsage
+                  - cloudfront:GetDistribution
+                  - cloudfront:ListDistributions
+                  - cloudwatch:GetMetricData
+                  - dynamodb:DescribeTable
+                  - dynamodb:ListTables
+                  - ec2:GetEbsEncryptionByDefault
+                  - eks:DescribeCluster
+                  - eks:ListClusters
+                  - elasticloadbalancing:DescribeLoadBalancerAttributes
+                  - iam:GenerateCredentialReport
+                  - iam:GetCredentialReport
+                  - pricing:GetProducts
+                  - rds:DescribeDBClusterSnapshots
+                  - rds:DescribeDBClusters
+                  - rds:DescribeDBInstances
+                  - rds:DescribeDBSnapshots
+                  - s3:GetAccountPublicAccessBlock
+                  - sns:GetTopicAttributes
+                  - sns:ListTopics
+                  - sqs:GetQueueAttributes
+                  - sqs:ListQueues
+                Resource: "*"
+              - Sid: NeverReadObjectData
+                Effect: Deny
+                Action:
+                  - s3:GetObject
+                  - s3:GetObjectVersion
+                  - dynamodb:GetItem
+                  - dynamodb:Query
+                  - dynamodb:Scan
+                  - secretsmanager:GetSecretValue
+                  - ssm:GetParameter
+                  - ssm:GetParameters
+                  - kms:Decrypt
+                Resource: "*"
+
+Outputs:
+  RoleArn:
+    Description: Use este ARN em --role-arn
+    Value: !GetAtt ScanRole.Arn
+  ScanCommand:
+    Value: !Sub "scanstacktestcloud scan --role-arn ${ScanRole.Arn} --external-id <seu-external-id> --html relatorio.html"

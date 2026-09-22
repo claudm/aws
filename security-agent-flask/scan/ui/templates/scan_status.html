@@ -1,0 +1,147 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <h1><i class="bi bi-hourglass-split me-2"></i>Scan em Progresso</h1>
+    <a href="{{ url_for('index') }}" class="btn btn-outline-secondary">
+        <i class="bi bi-arrow-left me-1"></i>Voltar ao Dashboard
+    </a>
+</div>
+
+<div class="row justify-content-center">
+    <div class="col-lg-8">
+        <div class="card">
+            <div class="card-header">
+                <h5 class="mb-0"><i class="bi bi-activity me-2"></i>Progresso do Scan</h5>
+            </div>
+            <div class="card-body">
+                <div class="mb-3">
+                    <div class="d-flex justify-content-between mb-1">
+                        <span id="status-message">{{ initial_status.message if initial_status else 'Iniciando...' }}</span>
+                        <span id="progress-percent">{{ initial_status.progress if initial_status else 0 }}%</span>
+                    </div>
+                    <div class="progress" style="height: 25px;">
+                        <div id="progress-bar" class="progress-bar {% if initial_status and initial_status.progress >= 100 and not initial_status.running %}bg-success{% else %}progress-bar-striped progress-bar-animated{% endif %}" 
+                             role="progressbar" style="width: {{ initial_status.progress if initial_status else 0 }}%;" aria-valuenow="{{ initial_status.progress if initial_status else 0 }}" aria-valuemin="0" aria-valuemax="100">
+                            {{ initial_status.progress if initial_status else 0 }}%
+                        </div>
+                    </div>
+                </div>
+                
+                <div id="status-details" class="text-muted small">
+                    {% if initial_status %}
+                        {% if initial_status.error %}
+                            Erro: {{ initial_status.error }}
+                        {% elif initial_status.progress >= 100 and not initial_status.running %}
+                            Scan concluído com sucesso!
+                        {% elif initial_status.running %}
+                            Executando... {{ initial_status.progress }}% completo
+                        {% else %}
+                            {{ initial_status.message }}
+                        {% endif %}
+                    {% else %}
+                        Aguardando início do scan...
+                    {% endif %}
+                </div>
+                
+                <div id="error-alert" class="alert alert-danger mt-3 {% if initial_status and initial_status.error %}{% else %}d-none{% endif %}">
+                    <i class="bi bi-exclamation-triangle me-2"></i>
+                    <span id="error-message">{{ initial_status.error if initial_status else '' }}</span>
+                </div>
+                
+                <div id="success-actions" class="mt-3 {% if initial_status and initial_status.progress >= 100 and not initial_status.running %}{% else %}d-none{% endif %}">
+                    <a id="view-results-btn" href="#" class="btn btn-primary">
+                        <i class="bi bi-eye me-1"></i>Ver Resultados
+                    </a>
+                    <a href="{{ url_for('index') }}" class="btn btn-outline-secondary ms-2">
+                        <i class="bi bi-house me-1"></i>Dashboard
+                    </a>
+                </div>
+            </div>
+        </div>
+        
+        <div class="card mt-3">
+            <div class="card-header">
+                <h6 class="mb-0"><i class="bi bi-info-circle me-1"></i>Informações</h6>
+            </div>
+            <div class="card-body">
+                <ul class="mb-0 small">
+                    <li>O scan roda em background. Esta página atualiza automaticamente.</li>
+                    <li>Não feche esta aba até o scan completar.</li>
+                    <li>O resultado será salvo automaticamente em <code>ui/scans/</code>.</li>
+                    <li>Em caso de erro, verifique as credenciais AWS e permissões da role.</li>
+                </ul>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+const filename = '{{ filename }}';
+let pollInterval;
+
+// Initialize UI with initial status
+function updateUI(status) {
+    document.getElementById('progress-bar').style.width = status.progress + '%';
+    document.getElementById('progress-bar').setAttribute('aria-valuenow', status.progress);
+    document.getElementById('progress-bar').textContent = status.progress + '%';
+    document.getElementById('progress-percent').textContent = status.progress + '%';
+    document.getElementById('status-message').textContent = status.message;
+    
+    if (status.error) {
+        document.getElementById('error-alert').classList.remove('d-none');
+        document.getElementById('error-message').textContent = status.error;
+        document.getElementById('progress-bar').classList.add('bg-danger');
+        document.getElementById('progress-bar').classList.remove('progress-bar-animated', 'progress-bar-striped');
+        stopPolling();
+    } else if (status.progress >= 100 && !status.running) {
+        document.getElementById('progress-bar').classList.add('bg-success');
+        document.getElementById('progress-bar').classList.remove('progress-bar-animated', 'progress-bar-striped');
+        document.getElementById('success-actions').classList.remove('d-none');
+        if (status.result_file) {
+            document.getElementById('view-results-btn').href = '/results/' + status.result_file.split('/').pop();
+        }
+        stopPolling();
+    }
+    
+    if (status.running) {
+        document.getElementById('status-details').textContent = 
+            `Executando... ${status.progress}% completo`;
+    } else if (status.progress >= 100) {
+        document.getElementById('status-details').textContent = 'Scan concluído com sucesso!';
+    }
+}
+
+async function pollStatus() {
+    try {
+        const response = await fetch('/api/scan/status');
+        const status = await response.json();
+        updateUI(status);
+    } catch (e) {
+        console.error('Erro ao consultar status:', e);
+    }
+}
+
+function stopPolling() {
+    if (pollInterval) {
+        clearInterval(pollInterval);
+        pollInterval = null;
+    }
+}
+
+// Initialize UI with initial status from template
+const initialStatus = {{ initial_status | tojson if initial_status else 'null' }};
+if (initialStatus) {
+    updateUI(initialStatus);
+}
+
+// Start polling
+pollInterval = setInterval(pollStatus, 2000);
+pollStatus(); // Initial call
+
+// Cleanup on page unload
+window.addEventListener('beforeunload', stopPolling);
+</script>
+{% endblock %}

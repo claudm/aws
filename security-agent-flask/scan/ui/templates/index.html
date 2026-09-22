@@ -1,0 +1,125 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <h1><i class="bi bi-speedometer2 me-2"></i>Dashboard</h1>
+    <a href="{{ url_for('scan') }}" class="btn btn-primary">
+        <i class="bi bi-plus-circle me-1"></i>Novo Scan
+    </a>
+</div>
+
+<!-- Stats Cards -->
+<div class="row mb-4">
+    <div class="col-md-3">
+        <div class="card bg-danger text-white">
+            <div class="card-body">
+                <h5 class="card-title">Total de Scans</h5>
+                <h2 class="display-4">{{ scans|length }}</h2>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card bg-warning text-dark">
+            <div class="card-body">
+                <h5 class="card-title">Total de Achados</h5>
+                <h2 class="display-4">{{ scans|sum(attribute='findings') }}</h2>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card bg-danger text-white">
+            <div class="card-body">
+                <h5 class="card-title">Críticos</h5>
+                <h2 class="display-4">{{ scans|sum(attribute='critical') }}</h2>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card bg-warning text-dark">
+            <div class="card-body">
+                <h5 class="card-title">Altos</h5>
+                <h2 class="display-4">{{ scans|sum(attribute='high') }}</h2>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Scans Table -->
+<div class="card">
+    <div class="card-header d-flex justify-content-between align-items-center">
+        <h5 class="mb-0"><i class="bi bi-table me-2"></i>Histórico de Scans</h5>
+        <a href="{{ url_for('scan') }}" class="btn btn-sm btn-primary">
+            <i class="bi bi-plus me-1"></i>Novo Scan
+        </a>
+    </div>
+    <div class="card-body">
+        {% if scans %}
+        <div class="table-responsive">
+            <table class="table table-hover align-middle">
+                <thead class="table-light">
+                    <tr>
+                        <th>Data/Hora</th>
+                        <th>Conta</th>
+                        <th>Regiões</th>
+                        <th>Achados</th>
+                        <th class="text-center">Severidade</th>
+                        <th>Ações</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for scan in scans %}
+                    <tr class="finding-row">
+                        <td>{{ scan.timestamp[:19].replace('T', ' ') if scan.timestamp else 'N/A' }}</td>
+                        <td><code>{{ scan.account }}</code></td>
+                        <td>{{ scan.regions }}</td>
+                        <td>{{ scan.findings }}</td>
+                        <td class="text-center">
+                            {% if scan.critical > 0 %}
+                                <span class="badge severity-critical">{{ scan.critical }}</span>
+                            {% endif %}
+                            {% if scan.high > 0 %}
+                                <span class="badge severity-high">{{ scan.high }}</span>
+                            {% endif %}
+                            {% if scan.medium > 0 %}
+                                <span class="badge severity-medium">{{ scan.medium }}</span>
+                            {% endif %}
+                            {% if scan.low > 0 %}
+                                <span class="badge severity-info">{{ scan.low }}</span>
+                            {% endif %}
+                            {% if scan.findings == 0 %}
+                                <span class="badge bg-success">Limpo</span>
+                            {% endif %}
+                        </td>
+                        <td>
+                            <div class="btn-group btn-group-sm">
+                                <a href="{{ url_for('results', filename=scan.file) }}" class="btn btn-outline-primary" title="Ver detalhes">
+                                    <i class="bi bi-eye"></i>
+                                </a>
+                                <a href="{{ url_for('download', filename=scan.file) }}" class="btn btn-outline-secondary" title="Baixar JSON">
+                                    <i class="bi bi-download"></i>
+                                </a>
+                                <form method="POST" action="{{ url_for('delete_scan', filename=scan.file) }}" class="d-inline" onsubmit="return confirm('Tem certeza?')">
+                                    <button type="submit" class="btn btn-outline-danger" title="Excluir">
+                                        <i class="bi bi-trash"></i>
+                                    </button>
+                                </form>
+                            </div>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        {% else %}
+        <div class="text-center py-5">
+            <i class="bi bi-inbox display-1 text-muted"></i>
+            <h4 class="text-muted mt-3">Nenhum scan realizado ainda</h4>
+            <p class="text-muted">Clique em "Novo Scan" para começar</p>
+            <a href="{{ url_for('scan') }}" class="btn btn-primary mt-2">
+                <i class="bi bi-play-circle me-1"></i>Executar Primeiro Scan
+            </a>
+        </div>
+        {% endif %}
+    </div>
+</div>
+{% endblock %}

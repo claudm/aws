@@ -1,0 +1,13 @@
+[project]
+name = "scanstacktestcloud-clone"
+version = "1.0.0"
+description = "Scanner read-only de postura AWS: segurança, confiabilidade e custo, com boto3"
+requires-python = ">=3.9"
+dependencies = ["boto3>=1.34"]
+
+[project.scripts]
+scanstacktestcloud = "scanstacktestcloud.cli:main"
+
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"

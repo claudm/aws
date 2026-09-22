@@ -1,0 +1,311 @@
+{% extends "base.html" %}
+
+{% block title %}Catálogo de Checks - scanstacktestcloud{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <h1><i class="bi bi-list-check me-2"></i>Catálogo de Checks</h1>
+    <div>
+        <a href="{{ url_for('index') }}" class="btn btn-outline-secondary">
+            <i class="bi bi-arrow-left me-1"></i>Dashboard
+        </a>
+    </div>
+</div>
+
+<!-- Stats Cards -->
+<div class="row mb-4">
+    <div class="col-md-3">
+        <div class="card bg-danger text-white">
+            <div class="card-body text-center">
+                <h3 id="count-security">0</h3>
+                <small>Segurança</small>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card bg-warning text-dark">
+            <div class="card-body text-center">
+                <h3 id="count-reliability">0</h3>
+                <small>Confiabilidade</small>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card bg-success text-white">
+            <div class="card-body text-center">
+                <h3 id="count-cost">0</h3>
+                <small>Otimização de Custo</small>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card bg-secondary text-white">
+            <div class="card-body text-center">
+                <h3 id="count-total">0</h3>
+                <small>Total</small>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Filters -->
+<div class="card mb-4">
+    <div class="card-body">
+        <div class="row g-3 align-items-end">
+            <div class="col-md-3">
+                <label class="form-label">Pilar</label>
+                <select class="form-select" id="filter-pillar">
+                    <option value="all">Todos</option>
+                    <option value="security">Segurança</option>
+                    <option value="reliability">Confiabilidade</option>
+                    <option value="cost_optimization">Otimização de Custo</option>
+                </select>
+            </div>
+            <div class="col-md-3">
+                <label class="form-label">Serviço</label>
+                <select class="form-select" id="filter-service">
+                    <option value="all">Todos</option>
+                </select>
+            </div>
+            <div class="col-md-4">
+                <label class="form-label">Buscar</label>
+                <input type="text" class="form-control" id="filter-search" placeholder="Título, ID, best practice...">
+            </div>
+            <div class="col-md-2 d-flex align-items-end">
+                <button type="button" class="btn btn-outline-secondary w-100" id="btn-clear">
+                    <i class="bi bi-x-circle me-1"></i>Limpar
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Checks Table -->
+<div class="card">
+    <div class="card-header d-flex justify-content-between align-items-center">
+        <h5 class="mb-0"><i class="bi bi-bug me-2"></i>Checks (<span id="shown-count">0</span> de <span id="total-count">0</span>)</h5>
+    </div>
+    <div class="card-body p-0">
+        <div class="table-responsive">
+            <table class="table table-hover align-middle mb-0">
+                <thead class="table-light">
+                    <tr>
+                        <th style="width: 100px;">Serviço</th>
+                        <th style="width: 120px;">Pilar</th>
+                        <th>Título</th>
+                        <th style="width: 220px;">ID</th>
+                        <th style="width: 100px;">Escopo</th>
+                        <th style="width: 120px;">Best Practice</th>
+                    </tr>
+                </thead>
+                <tbody id="checks-tbody">
+                    <tr>
+                        <td colspan="6" class="text-center py-4">
+                            <div class="spinner-border text-primary" role="status">
+                                <span class="visually-hidden">Carregando...</span>
+                            </div>
+                        </td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+<!-- Check Detail Modal -->
+<div class="modal fade" id="checkDetailModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-lg modal-dialog-scrollable">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="detail-title">Detalhes do Check</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body" id="detail-body">
+                <!-- Populated by JS -->
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+let allChecks = [];
+
+function pillarColor(pillar) {
+    const colors = { security: 'danger', reliability: 'warning', cost_optimization: 'success' };
+    return colors[pillar] || 'secondary';
+}
+
+function pillarLabel(pillar) {
+    const labels = { security: 'Segurança', reliability: 'Confiabilidade', cost_optimization: 'Otimização de Custo' };
+    return labels[pillar] || pillar;
+}
+
+function scopeLabel(scope) {
+    return scope === 'global' ? 'Global' : 'Regional';
+}
+
+function render() {
+    const pillar = document.getElementById('filter-pillar').value;
+    const service = document.getElementById('filter-service').value;
+    const search = document.getElementById('filter-search').value.toLowerCase();
+
+    const filtered = allChecks.filter(c => {
+        if (pillar !== 'all' && c.pillar !== pillar) return false;
+        if (service !== 'all' && c.service !== service) return false;
+        if (search && !(c.title.toLowerCase().includes(search)
+                     || c.id.toLowerCase().includes(search)
+                     || (c.well_architected || '').toLowerCase().includes(search))) return false;
+        return true;
+    });
+
+    document.getElementById('shown-count').textContent = filtered.length;
+    document.getElementById('total-count').textContent = allChecks.length;
+
+    const tbody = document.getElementById('checks-tbody');
+    if (!filtered.length) {
+        tbody.innerHTML = '<tr><td colspan="6" class="text-center py-4 text-muted">Nenhum check com os filtros atuais</td></tr>';
+        return;
+    }
+    tbody.innerHTML = filtered.map(c => `
+        <tr style="cursor: pointer;" onclick="showCheckDetail('${c.id}')">
+            <td><code class="small">${c.service}</code></td>
+            <td><span class="badge bg-${pillarColor(c.pillar)}">${pillarLabel(c.pillar)}</span></td>
+            <td><strong>${c.title}</strong></td>
+            <td><code class="small">${c.id}</code></td>
+            <td><span class="badge bg-secondary">${scopeLabel(c.scope)}</span></td>
+            <td>${c.well_architected ? `<code class="small">${c.well_architected}</code>` : '<span class="text-muted">—</span>'}</td>
+        </tr>
+    `).join('');
+}
+
+function showCheckDetail(id) {
+    const c = allChecks.find(x => x.id === id);
+    if (!c) return;
+
+    const perms = (c.permissions || []).length
+        ? c.permissions.map(p => `<li><code>${p}</code></li>`).join('')
+        : '<li class="text-muted">Nenhuma permissão declarada</li>';
+
+    document.getElementById('detail-title').textContent = c.title;
+    document.getElementById('detail-body').innerHTML = `
+        <div class="row mb-3">
+            <div class="col-md-6"><strong>Check ID:</strong> <code>${c.id}</code></div>
+            <div class="col-md-6"><strong>Pilar:</strong> <span class="badge bg-${pillarColor(c.pillar)}">${pillarLabel(c.pillar)}</span></div>
+        </div>
+        <div class="row mb-3">
+            <div class="col-md-6"><strong>Serviço:</strong> <code>${c.service}</code></div>
+            <div class="col-md-6"><strong>Escopo:</strong> <span class="badge bg-secondary">${scopeLabel(c.scope)}</span></div>
+        </div>
+        <div class="row mb-3">
+            <div class="col-md-6"><strong>Best Practice:</strong> ${c.well_architected ? `<code>${c.well_architected}</code>` : '<span class="text-muted">—</span>'}</div>
+        </div>
+        <hr>
+        <h6><i class="bi bi-shield-lock me-1"></i>Permissões IAM necessárias</h6>
+        <ul class="mb-0">${perms}</ul>
+        <hr>
+        <h6><i class="bi bi-hdd-stack me-1"></i>Recursos analisados no último scan</h6>
+        <div id="check-resources">
+            <div class="text-center py-3">
+                <div class="spinner-border spinner-border-sm text-primary" role="status">
+                    <span class="visually-hidden">Carregando...</span>
+                </div>
+            </div>
+        </div>
+    `;
+    new bootstrap.Modal(document.getElementById('checkDetailModal')).show();
+
+    // Busca os recursos analisados no último scan
+    fetch(`/api/checks/${encodeURIComponent(c.id)}/resources`)
+        .then(r => r.json())
+        .then(data => {
+            const box = document.getElementById('check-resources');
+            if (data.error) {
+                box.innerHTML = `<div class="alert alert-warning mb-0">${data.error}</div>`;
+                return;
+            }
+            if (data.executed === false) {
+                box.innerHTML = `<div class="alert alert-info mb-0"><i class="bi bi-info-circle me-1"></i>Este check <strong>não foi executado</strong> no último scan (${data.scan_file}) — provavelmente ficou de fora dos filtros do scan (pilar/serviço). Rode um novo scan sem filtros para avaliá-lo.</div>`;
+                return;
+            }
+            if (data.executed === null) {
+                box.innerHTML = `<div class="alert alert-secondary mb-0"><i class="bi bi-question-circle me-1"></i>O último scan (${data.scan_file}) é de uma versão anterior e não registra quais checks rodaram. Rode um novo scan para confirmar.</div>`;
+                return;
+            }
+            if (!data.resources.length) {
+                box.innerHTML = '<div class="alert alert-success mb-0"><i class="bi bi-check-circle me-1"></i>Nenhum achado para este check no último scan.</div>';
+                return;
+            }
+            box.innerHTML = `
+                <div class="mb-2"><span class="badge bg-danger">${data.total_findings} achado(s)</span> <span class="text-muted small">scan: ${data.scan_file}</span></div>
+                <div class="table-responsive">
+                    <table class="table table-sm table-hover align-middle mb-0">
+                        <thead class="table-light">
+                            <tr>
+                                <th>Recurso</th>
+                                <th>Região</th>
+                                <th>Severidade</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            ${data.resources.map(r => `
+                                <tr>
+                                    <td><code class="small">${r.resource_id}</code></td>
+                                    <td><span class="badge bg-secondary">${r.region}</span></td>
+                                    <td><span class="badge severity-${r.severity.toLowerCase()}">${r.severity}</span></td>
+                                </tr>
+                            `).join('')}
+                        </tbody>
+                    </table>
+                </div>`;
+        })
+        .catch(err => {
+            document.getElementById('check-resources').innerHTML =
+                `<div class="alert alert-danger mb-0">Erro ao carregar recursos: ${err}</div>`;
+        });
+}
+
+function updateCounts() {
+    const counts = { security: 0, reliability: 0, cost_optimization: 0 };
+    allChecks.forEach(c => { if (counts[c.pillar] !== undefined) counts[c.pillar]++; });
+    document.getElementById('count-security').textContent = counts.security;
+    document.getElementById('count-reliability').textContent = counts.reliability;
+    document.getElementById('count-cost').textContent = counts.cost_optimization;
+    document.getElementById('count-total').textContent = allChecks.length;
+}
+
+function populateServices() {
+    const services = [...new Set(allChecks.map(c => c.service))].sort();
+    const sel = document.getElementById('filter-service');
+    services.forEach(s => {
+        const opt = document.createElement('option');
+        opt.value = s;
+        opt.textContent = s;
+        sel.appendChild(opt);
+    });
+}
+
+document.getElementById('filter-pillar').addEventListener('change', render);
+document.getElementById('filter-service').addEventListener('change', render);
+document.getElementById('filter-search').addEventListener('input', render);
+document.getElementById('btn-clear').addEventListener('click', () => {
+    document.getElementById('filter-pillar').value = 'all';
+    document.getElementById('filter-service').value = 'all';
+    document.getElementById('filter-search').value = '';
+    render();
+});
+
+fetch('/api/checks')
+    .then(r => r.json())
+    .then(data => {
+        allChecks = data;
+        updateCounts();
+        populateServices();
+        render();
+    })
+    .catch(err => {
+        document.getElementById('checks-tbody').innerHTML =
+            `<tr><td colspan="6" class="text-center py-4 text-danger">Erro ao carregar checks: ${err}</td></tr>`;
+    });
+</script>
+{% endblock %}

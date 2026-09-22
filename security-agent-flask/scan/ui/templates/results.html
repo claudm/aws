@@ -1,0 +1,281 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <h1><i class="bi bi-list-ul me-2"></i>Resultados do Scan</h1>
+    <div>
+        <a href="{{ url_for('download', filename=filename) }}" class="btn btn-outline-primary">
+            <i class="bi bi-download me-1"></i>Baixar JSON
+        </a>
+        <a href="{{ url_for('index') }}" class="btn btn-outline-secondary ms-2">
+            <i class="bi bi-arrow-left me-1"></i>Dashboard
+        </a>
+    </div>
+</div>
+
+<!-- Scan Info -->
+<div class="card mb-4">
+    <div class="card-header">
+        <h5 class="mb-0"><i class="bi bi-info-circle me-2"></i>Informações do Scan</h5>
+    </div>
+    <div class="card-body">
+        <div class="row">
+            <div class="col-md-3">
+                <strong>Conta:</strong> <code>{{ data.account_id }}</code>
+            </div>
+            <div class="col-md-3">
+                <strong>Iniciado:</strong> {{ data.started_at[:19].replace('T', ' ') if data.started_at else 'N/A' }}
+            </div>
+            <div class="col-md-3">
+                <strong>Finalizado:</strong> {{ data.finished_at[:19].replace('T', ' ') if data.finished_at else 'N/A' }}
+            </div>
+            <div class="col-md-3">
+                <strong>Duração:</strong> {{ data.duration_seconds }}s
+            </div>
+            <div class="col-md-3">
+                <strong>Regiões:</strong> {{ data.regions|length }} ({{ data.regions|join(', ') }})
+            </div>
+            <div class="col-md-3">
+                <strong>Checks:</strong> {{ data.checks_executed }}
+            </div>
+            <div class="col-md-3">
+                <strong>Recursos:</strong> {{ data.resources_evaluated }}
+            </div>
+            <div class="col-md-3">
+                <strong>Erros:</strong> {{ data.errors|length }}
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Stats Cards -->
+<div class="row mb-4">
+    <div class="col-md-3">
+        <div class="card bg-danger text-white">
+            <div class="card-body text-center">
+                <h3>{{ stats.critical }}</h3>
+                <small>Críticos</small>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card bg-warning text-dark">
+            <div class="card-body text-center">
+                <h3>{{ stats.high }}</h3>
+                <small>Altos</small>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card bg-warning text-dark" style="background-color: #ffc107 !important;">
+            <div class="card-body text-center">
+                <h3>{{ stats.medium }}</h3>
+                <small>Médios</small>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card bg-info text-white">
+            <div class="card-body text-center">
+                <h3>{{ stats.low }}</h3>
+                <small>Baixos/Info</small>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Filters -->
+<div class="card mb-4">
+    <div class="card-body">
+        <form method="GET" class="row g-3 align-items-end">
+            <div class="col-md-3">
+                <label class="form-label">Severidade</label>
+                <select class="form-select" name="severity" onchange="this.form.submit()">
+                    <option value="all" {% if severity_filter == 'all' %}selected{% endif %}>Todas</option>
+                    <option value="CRITICAL" {% if severity_filter == 'CRITICAL' %}selected{% endif %}>Crítico</option>
+                    <option value="HIGH" {% if severity_filter == 'HIGH' %}selected{% endif %}>Alto</option>
+                    <option value="MEDIUM" {% if severity_filter == 'MEDIUM' %}selected{% endif %}>Médio</option>
+                    <option value="LOW" {% if severity_filter == 'LOW' %}selected{% endif %}>Baixo</option>
+                    <option value="INFO" {% if severity_filter == 'INFO' %}selected{% endif %}>Info</option>
+                </select>
+            </div>
+            <div class="col-md-3">
+                <label class="form-label">Pilar</label>
+                <select class="form-select" name="pillar" onchange="this.form.submit()">
+                    <option value="all" {% if pillar_filter == 'all' %}selected{% endif %}>Todos</option>
+                    <option value="security" {% if pillar_filter == 'security' %}selected{% endif %}>Segurança</option>
+                    <option value="reliability" {% if pillar_filter == 'reliability' %}selected{% endif %}>Confiabilidade</option>
+                    <option value="cost_optimization" {% if pillar_filter == 'cost_optimization' %}selected{% endif %}>Otimização de Custo</option>
+                </select>
+            </div>
+            <div class="col-md-4">
+                <label class="form-label">Buscar</label>
+                <input type="text" class="form-control" name="search" value="{{ search }}" placeholder="Título, descrição, resource ID...">
+            </div>
+            <div class="col-md-2 d-flex align-items-end">
+                <button type="submit" class="btn btn-primary w-100">
+                    <i class="bi bi-funnel me-1"></i>Filtrar
+                </button>
+            </div>
+        </form>
+        {% if severity_filter != 'all' or pillar_filter != 'all' or search %}
+        <div class="mt-2">
+            <a href="{{ url_for('results', filename=filename) }}" class="btn btn-sm btn-outline-secondary">
+                <i class="bi bi-x-circle me-1"></i>Limpar Filtros
+            </a>
+            <span class="text-muted ms-2">{{ stats.filtered }} de {{ stats.total }} achados</span>
+        </div>
+        {% endif %}
+    </div>
+</div>
+
+<!-- Findings Table -->
+<div class="card">
+    <div class="card-header d-flex justify-content-between align-items-center">
+        <h5 class="mb-0"><i class="bi bi-bug me-2"></i>Achados ({{ stats.filtered }} de {{ stats.total }})</h5>
+    </div>
+    <div class="card-body p-0">
+        {% if findings %}
+        <div class="table-responsive">
+            <table class="table table-hover align-middle mb-0">
+                <thead class="table-light">
+                    <tr>
+                        <th style="width: 80px;">Severidade</th>
+                        <th style="width: 100px;">Pilar</th>
+                        <th>Check ID</th>
+                        <th>Título</th>
+                        <th style="width: 150px;">Recurso</th>
+                        <th style="width: 100px;">Região</th>
+                        <th style="width: 80px;">Risk Score</th>
+                        <th style="width: 100px;">Ações</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for f in findings %}
+                    <tr class="finding-row">
+                        <td>
+                            <span class="badge severity-{{ f.severity.lower() }}">{{ f.severity }}</span>
+                        </td>
+                        <td>
+                            <span class="badge bg-{{ 'danger' if f.pillar == 'security' else 'warning' if f.pillar == 'reliability' else 'success' }}">
+                                {{ f.pillar.replace('_', ' ').title() }}
+                            </span>
+                        </td>
+                        <td><code class="small">{{ f.check_id }}</code></td>
+                        <td>
+                            <strong>{{ f.title }}</strong>
+                            {% if f.monthly_waste_usd and f.monthly_waste_usd > 0 %}
+                                <br><span class="text-warning small"><i class="bi bi-currency-dollar me-1"></i>${{ "%.2f"|format(f.monthly_waste_usd) }}/mês desperdício</span>
+                            {% endif %}
+                        </td>
+                        <td><code class="small">{{ f.resource_id }}</code></td>
+                        <td><span class="badge bg-secondary">{{ f.region }}</span></td>
+                        <td>
+                            {% if f.risk_score is not none %}
+                                <span class="badge {% if f.risk_score >= 80 %}bg-danger{% elif f.risk_score >= 60 %}bg-warning{% elif f.risk_score >= 40 %}bg-info{% else %}bg-success{% endif %}">
+                                    {{ "%.1f"|format(f.risk_score) }}
+                                </span>
+                            {% else %}
+                                <span class="text-muted">-</span>
+                            {% endif %}
+                        </td>
+                        <td>
+                            <div class="btn-group btn-group-sm">
+                                <a href="{{ url_for('finding_detail', filename=filename, index=loop.index0) }}" 
+                                   class="btn btn-outline-primary" title="Ver detalhes">
+                                    <i class="bi bi-eye"></i>
+                                </a>
+                                <button class="btn btn-outline-secondary" 
+                                        data-bs-toggle="modal" 
+                                        data-bs-target="#detailModal"
+                                        data-finding='{{ f|tojson }}'
+                                        title="Visualização rápida">
+                                    <i class="bi bi-arrows-fullscreen"></i>
+                                </button>
+                            </div>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        {% else %}
+        <div class="text-center py-5">
+            <i class="bi bi-funnel display-1 text-muted"></i>
+            <h4 class="text-muted mt-3">Nenhum achado com os filtros atuais</h4>
+            <a href="{{ url_for('results', filename=filename) }}" class="btn btn-outline-primary mt-2">
+                <i class="bi bi-x-circle me-1"></i>Limpar Filtros
+            </a>
+        </div>
+        {% endif %}
+    </div>
+</div>
+
+<!-- Detail Modal -->
+<div class="modal fade" id="detailModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-xl modal-dialog-scrollable">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="detailModalTitle">Detalhes do Achado</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body" id="detailModalBody">
+                <!-- Populated by JS -->
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+document.getElementById('detailModal').addEventListener('show.bs.modal', function(event) {
+    const button = event.relatedTarget;
+    const finding = JSON.parse(button.getAttribute('data-finding'));
+    
+    document.getElementById('detailModalTitle').textContent = finding.title;
+    
+    let html = `
+        <div class="row mb-3">
+            <div class="col-md-6"><strong>Check ID:</strong> <code>${finding.check_id}</code></div>
+            <div class="col-md-6"><strong>Severidade:</strong> <span class="badge severity-${finding.severity.toLowerCase()}">${finding.severity}</span></div>
+        </div>
+        <div class="row mb-3">
+            <div class="col-md-6"><strong>Pilar:</strong> ${finding.pillar.replace('_', ' ').title()}</div>
+            <div class="col-md-6"><strong>Serviço:</strong> ${finding.service}</div>
+        </div>
+        <div class="row mb-3">
+            <div class="col-md-6"><strong>Recurso:</strong> <code>${finding.resource_id}</code></div>
+            <div class="col-md-6"><strong>ARN:</strong> <code class="small">${finding.resource_arn}</code></div>
+        </div>
+        <div class="row mb-3">
+            <div class="col-md-6"><strong>Região:</strong> ${finding.region}</div>
+            <div class="col-md-6"><strong>Risk Score:</strong> ${finding.risk_score !== null ? finding.risk_score.toFixed(1) : 'N/A'}</div>
+        </div>
+        <hr>
+        <h6>Descrição</h6>
+        <p>${finding.description}</p>
+        <h6>Remediação</h6>
+        <p>${finding.remediation}</p>
+    `;
+    
+    if (finding.evidence && Object.keys(finding.evidence).length > 0) {
+        html += `<hr><h6>Evidências</h6><pre class="bg-light p-3 small">${JSON.stringify(finding.evidence, null, 2)}</pre>`;
+    }
+    
+    if (finding.exposure && finding.exposure.length > 0) {
+        html += `<hr><h6>Exposição</h6><div>${finding.exposure.map(e => '<span class="badge bg-secondary me-1">' + e + '</span>').join('')}</div>`;
+    }
+    
+    if (finding.well_architected) {
+        html += `<hr><h6>Well-Architected</h6><p>${finding.well_architected}</p>`;
+    }
+    
+    if (finding.doc_url) {
+        html += `<hr><a href="${finding.doc_url}" target="_blank" class="btn btn-sm btn-outline-primary"><i class="bi bi-box-arrow-up-right me-1"></i>Documentação AWS</a>`;
+    }
+    
+    document.getElementById('detailModalBody').innerHTML = html;
+});
+</script>
+{% endblock %}
