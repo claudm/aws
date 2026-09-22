@@ -1,5 +1,5 @@
 """
-Flask UI for scanstacktestcloud - AWS Posture Scanner
+Flask UI for testcloud - AWS Posture Scanner
 """
 import os
 import json
@@ -10,7 +10,7 @@ from pathlib import Path
 from flask import Flask, render_template, request, jsonify, send_file, redirect, url_for, flash
 
 app = Flask(__name__)
-app.secret_key = os.environ.get('SECRET_KEY', 'scanstacktestcloud-dev-key')
+app.secret_key = os.environ.get('SECRET_KEY', 'testcloud-dev-key')
 
 # Paths
 BASE_DIR = Path(__file__).parent.parent
@@ -40,11 +40,11 @@ def run_scan_async(args, output_file):
         import sys
         sys.path.insert(0, str(BASE_DIR))
         
-        from scanstacktestcloud.context import SessionFactory
-        from scanstacktestcloud.engine import Scanner
-        from scanstacktestcloud.models import Severity
-        from scanstacktestcloud.registry import select
-        from scanstacktestcloud.report import write_json
+        from testcloud.context import SessionFactory
+        from testcloud.engine import Scanner
+        from testcloud.models import Severity
+        from testcloud.registry import select
+        from testcloud.report import write_json
         
         # Parse args into proper parameters
         profile = None
@@ -383,8 +383,8 @@ def api_checks():
         import sys
         sys.path.insert(0, str(BASE_DIR))
         # Import checks modules to populate registry
-        import scanstacktestcloud.checks  # noqa: F401 - popula o registry
-        from scanstacktestcloud.registry import all_checks
+        import testcloud.checks  # noqa: F401 - popula o registry
+        from testcloud.registry import all_checks
         
         checks = []
         for c in sorted(all_checks(), key=lambda c: (c.pillar.value, c.id)):

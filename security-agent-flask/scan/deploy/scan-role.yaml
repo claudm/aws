@@ -93,4 +93,4 @@ Outputs:
     Description: Use este ARN em --role-arn
     Value: !GetAtt ScanRole.Arn
   ScanCommand:
-    Value: !Sub "scanstacktestcloud scan --role-arn ${ScanRole.Arn} --external-id <seu-external-id> --html relatorio.html"
+    Value: !Sub "testcloud scan --role-arn ${ScanRole.Arn} --external-id <seu-external-id> --html relatorio.html"

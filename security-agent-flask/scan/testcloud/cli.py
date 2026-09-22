@@ -20,7 +20,7 @@ SEVERITY_ORDER = [Severity.INFO, Severity.LOW, Severity.MEDIUM, Severity.HIGH, S
 
 def build_parser() -> argparse.ArgumentParser:
     p = argparse.ArgumentParser(
-        prog="scanstacktestcloud",
+        prog="testcloud",
         description="Scanner read-only de postura AWS: segurança, confiabilidade e custo.",
     )
     sub = p.add_subparsers(dest="command", required=True)

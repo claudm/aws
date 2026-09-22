@@ -38,7 +38,7 @@ def render_console(result: ScanResult, limit: int = 40, show_all: bool = False) 
     counts = result.counts_by_severity()
     alias = f" ({result.account_alias})" if result.account_alias else ""
 
-    out.write(f"\n{c('scanstacktestcloud — posture scan', BOLD)}\n")
+    out.write(f"\n{c('testcloud — posture scan', BOLD)}\n")
     out.write(f"Conta {result.account_id}{alias} · {len(result.regions)} regiões · {result.duration_seconds}s\n")
     out.write(
         f"{result.checks_executed} execuções de check · {result.resources_evaluated} recursos avaliados\n\n"

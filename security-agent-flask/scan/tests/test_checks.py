@@ -12,7 +12,7 @@ import boto3
 import pytest
 from botocore.stub import ANY, Stubber
 
-from scanstacktestcloud.checks import (
+from testcloud.checks import (
     cloudfront,
     compute,
     cost,
@@ -22,9 +22,9 @@ from scanstacktestcloud.checks import (
     sns,
     sqs,
 )
-from scanstacktestcloud.context import ScanContext, SessionFactory
-from scanstacktestcloud.models import Severity
-from scanstacktestcloud.registry import all_checks, select
+from testcloud.context import ScanContext, SessionFactory
+from testcloud.models import Severity
+from testcloud.registry import all_checks, select
 
 
 def make_ctx(region="us-east-1"):

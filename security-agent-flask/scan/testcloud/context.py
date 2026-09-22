@@ -19,7 +19,7 @@ from botocore.exceptions import BotoCoreError, ClientError
 
 from .models import Finding, Pillar, Severity
 
-log = logging.getLogger("scanstacktestcloud")
+log = logging.getLogger("testcloud")
 
 # Erros que significam "não tenho permissão" ou "serviço não habilitado" —
 # viram avisos no relatório, não quebram o scan.
@@ -42,7 +42,7 @@ BOTO_CONFIG = Config(
     retries={"max_attempts": 10, "mode": "adaptive"},
     connect_timeout=10,
     read_timeout=60,
-    user_agent_extra="scanstacktestcloud-clone/1.0",
+    user_agent_extra="testcloud-clone/1.0",
 )
 
 
@@ -54,7 +54,7 @@ class SessionFactory:
         profile: Optional[str] = None,
         role_arn: Optional[str] = None,
         external_id: Optional[str] = None,
-        session_name: str = "scanstacktestcloud-scan",
+        session_name: str = "testcloud-scan",
         duration_seconds: int = 3600,
     ):
         self.profile = profile

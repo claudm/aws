@@ -13,7 +13,7 @@ import logging
 import threading
 from typing import Dict, Optional
 
-log = logging.getLogger("scanstacktestcloud.pricing")
+log = logging.getLogger("testcloud.pricing")
 
 HOURS_PER_MONTH = 730.0
 

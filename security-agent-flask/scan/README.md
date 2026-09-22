@@ -1,6 +1,6 @@
 # Posture scan de conta AWS com boto3
 
-Reimplementação do conceito do scanstacktestcloud: um scanner **somente leitura** que varre
+Reimplementação do conceito do testcloud: um scanner **somente leitura** que varre
 uma conta AWS e devolve achados priorizados em três pilares do Well-Architected —
 Segurança, Confiabilidade e Otimização de Custo — com ARN do recurso e instrução de
 correção em português.
@@ -9,7 +9,7 @@ correção em português.
 
 ```
 pip install -r requirements.txt
-python -m scanstacktestcloud.cli scan --profile meu-perfil --html relatorio.html
+python -m testcloud.cli scan --profile meu-perfil --html relatorio.html
 ```
 
 ## Garantias de segurança do próprio scanner
@@ -27,21 +27,21 @@ python -m scanstacktestcloud.cli scan --profile meu-perfil --html relatorio.html
 
 ```bash
 # scan completo, todas as regiões habilitadas
-python -m scanstacktestcloud.cli scan --profile prod --html relatorio.html --json scan.json
+python -m testcloud.cli scan --profile prod --html relatorio.html --json scan.json
 
 # cross-account, como o produto original faz
-python -m scanstacktestcloud.cli scan \
+python -m testcloud.cli scan \
   --role-arn arn:aws:iam::123456789012:role/PostureScanReadOnly \
   --external-id $EXTERNAL_ID --progress
 
 # só custo, só sa-east-1
-python -m scanstacktestcloud.cli scan --pillars cost_optimization --regions sa-east-1
+python -m testcloud.cli scan --pillars cost_optimization --regions sa-east-1
 
 # no CI: falha o pipeline se aparecer algo alto ou crítico
-python -m scanstacktestcloud.cli scan --min-severity high --fail-on high --quiet --json scan.json
+python -m testcloud.cli scan --min-severity high --fail-on high --quiet --json scan.json
 
 # catálogo de checks e as permissões que eles exigem
-python -m scanstacktestcloud.cli list-checks --permissions
+python -m testcloud.cli list-checks --permissions
 ```
 
 Códigos de saída: `0` sem bloqueio, `1` erro de execução, `2` achado igual ou acima
@@ -50,7 +50,7 @@ do `--fail-on`.
 ## Arquitetura
 
 ```
-scanstacktestcloud/
+testcloud/
   models.py      Pillar, Severity, Finding, ScanResult, cálculo de risco
   registry.py    decorator @check + seleção por pilar/serviço/id
   context.py     SessionFactory, clients cacheados, paginação, helper de finding

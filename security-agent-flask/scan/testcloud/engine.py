@@ -16,7 +16,7 @@ from .context import ScanContext, SessionFactory
 from .models import CheckError, Finding, ScanResult
 from .registry import Check
 
-log = logging.getLogger("scanstacktestcloud")
+log = logging.getLogger("testcloud")
 
 ProgressCb = Callable[[str, str, int, int], None]
 
