@@ -98,6 +98,28 @@ def write_json(result: ScanResult, path: str) -> None:
         json.dump(result.to_dict(), fh, indent=2, ensure_ascii=False, default=str)
 
 
+def write_split_json(result: ScanResult, out_dir: str) -> None:
+    os.makedirs(out_dir, exist_ok=True)
+    by_service: Dict[str, List[Dict[str, Any]]] = {}
+    for f in sorted(result.findings, key=lambda x: x.sort_key):
+        svc = f.service or "unknown"
+        if svc not in by_service:
+            by_service[svc] = []
+        by_service[svc].append(f.to_dict())
+
+    for svc, findings in by_service.items():
+        data = {
+            "schema_version": "1.0",
+            "account_id": result.account_id,
+            "service": svc,
+            "findings_count": len(findings),
+            "findings": findings,
+        }
+        path = os.path.join(out_dir, f"{svc}.json")
+        with open(path, "w", encoding="utf-8") as fh:
+            json.dump(data, fh, indent=2, ensure_ascii=False, default=str)
+
+
 def write_csv(result: ScanResult, path: str) -> None:
     cols = [
         "check_id", "severity", "risk_score", "pillar", "title", "region",

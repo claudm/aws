@@ -1,0 +1,24 @@
+{
+  "VPC.FLOW_LOGS_DISABLED": {
+    "title": "VPC {var} sem flow logs ativos",
+    "severity": "medium",
+    "description": "Sem flow logs não há como investigar exfiltração, varredura lateral ou conectividade quebrada depois do incidente.",
+    "remediation": "Ative flow logs (formato customizado, destino S3 em Parquet para custo menor) com retenção alinhada à política de resposta a incidentes.",
+    "pillar": "security",
+    "well_architected": "SEC04-BP01",
+    "permissions": [
+      "ec2:DescribeVpcs",
+      "ec2:DescribeFlowLogs"
+    ],
+    "evaluate": {
+      "resource": "ec2.vpc",
+      "service": "ec2",
+      "skip_if_none": true,
+      "operation": "describe_flow_logs",
+      "operator": "jsonpath",
+      "expression": "$.FlowLogs[?(@.FlowLogStatus=='ACTIVE')]",
+      "expected": "empty",
+      "exposure": []
+    }
+  }
+}

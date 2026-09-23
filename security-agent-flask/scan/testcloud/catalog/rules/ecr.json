@@ -1,0 +1,64 @@
+{
+  "ECR.SCAN_ON_PUSH_DISABLED": {
+    "title": "Repositório ECR '{var}' sem scan on push",
+    "severity": "medium",
+    "description": "Imagens são promovidas sem verificação de CVEs conhecidas nas camadas do SO.",
+    "remediation": "Ative Enhanced scanning (Inspector) no nível do registry e falhe o pipeline em severidade alta.",
+    "pillar": "security",
+    "well_architected": "SEC06-BP01",
+    "permissions": [
+      "ecr:DescribeRepositories"
+    ],
+    "evaluate": {
+      "resource": "ecr.repository",
+      "service": "ecr",
+      "skip_if_none": true,
+      "operation": "describe_repositories",
+      "extract": "repositories.0.imageScanningConfiguration.scanOnPush",
+      "operator": "falsy",
+      "exposure": []
+    }
+  },
+  "ECR.MUTABLE_TAGS": {
+    "title": "Repositório ECR '{var}' permite sobrescrever tags",
+    "severity": "low",
+    "description": "Com tags mutáveis, o artefato que rodou no ambiente não é reproduzível e um push pode substituir a imagem já auditada.",
+    "remediation": "Mude para IMMUTABLE e faça deploy por digest (sha256) no manifesto.",
+    "pillar": "security",
+    "well_architected": "SEC06-BP01",
+    "permissions": [
+      "ecr:DescribeRepositories"
+    ],
+    "evaluate": {
+      "resource": "ecr.repository",
+      "service": "ecr",
+      "skip_if_none": true,
+      "operation": "describe_repositories",
+      "extract": "repositories.0.imageTagMutability",
+      "operator": "not_equals",
+      "value": "IMMUTABLE",
+      "exposure": []
+    }
+  },
+  "ECR.IMAGE_SCANNING_DISABLED": {
+    "title": "Repositório ECR '{var}' sem scan on push",
+    "severity": "high",
+    "description": "O repositório '{var}' não está configurado para varrer novas imagens. Imagens de contêineres podem embutir vulnerabilidades e CVEs que acabarão rodando em produção.",
+    "remediation": "Habilite a opção 'Scan on push' nas configurações do repositório ECR.",
+    "pillar": "security",
+    "exposure": [
+      "compute"
+    ],
+    "permissions": [
+      "ecr:DescribeRepositories"
+    ],
+    "evaluate": {
+      "resource": "ecr.repository",
+      "service": "ecr",
+      "operation": "describe_repositories",
+      "skip_if_none": true,
+      "extract": "repositories.0.imageScanningConfiguration.scanOnPush",
+      "operator": "falsy"
+    }
+  }
+}

@@ -1,0 +1,39 @@
+{
+  "MSK.IN_TRANSIT_ENCRYPTION_DISABLED": {
+    "title": "Cluster Kafka '{var}' não força criptografia em trânsito",
+    "severity": "high",
+    "description": "O cluster MSK '{var}' está permitindo tráfego Kafka não-criptografado (ClientBroker: {var}, InCluster: {var}).",
+    "remediation": "Altere as configurações do MSK para exigir TLS para Client-Broker e habilitar a criptografia In-Cluster.",
+    "pillar": "security",
+    "exposure": [
+      "data_store"
+    ],
+    "permissions": [
+      "kafka:ListClustersV2",
+      "kafka:DescribeClusterV2"
+    ],
+    "evaluate": {
+      "resource": "kafka.cluster",
+      "service": "kafka",
+      "skip_if_none": true,
+      "operator": "or",
+      "conditions": [
+        {
+          "operation": "describe_cluster_v2",
+          "extract": "ClusterInfo.Provisioned.EncryptionInfo.EncryptionInTransit.ClientBroker",
+          "operator": "in",
+          "value": [
+            null,
+            "PLAINTEXT",
+            "TLS_PLAINTEXT"
+          ]
+        },
+        {
+          "operation": "describe_cluster_v2",
+          "extract": "ClusterInfo.Provisioned.EncryptionInfo.EncryptionInTransit.InCluster",
+          "operator": "falsy"
+        }
+      ]
+    }
+  }
+}

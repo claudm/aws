@@ -1,0 +1,23 @@
+{
+  "EFS.NOT_ENCRYPTED": {
+    "title": "EFS '{var}' sem criptografia em repouso",
+    "severity": "high",
+    "description": "O sistema de arquivos EFS '{var}' foi criado sem a flag de criptografia em repouso (Encrypted=False).",
+    "remediation": "Criptografia do EFS só pode ser habilitada na criação. Você precisa criar um novo sistema de arquivos criptografado e migrar os dados.",
+    "pillar": "security",
+    "exposure": [
+      "data_store"
+    ],
+    "permissions": [
+      "elasticfilesystem:DescribeFileSystems"
+    ],
+    "evaluate": {
+      "resource": "efs.file_system",
+      "service": "efs",
+      "operation": "describe_file_systems",
+      "skip_if_none": true,
+      "extract": "FileSystems.0.Encrypted",
+      "operator": "falsy"
+    }
+  }
+}

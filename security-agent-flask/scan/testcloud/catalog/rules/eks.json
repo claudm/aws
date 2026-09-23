@@ -1,0 +1,66 @@
+{
+  "EKS.PUBLIC_ENDPOINT": {
+    "title": "Cluster EKS '{var}' com API server público{var}",
+    "severity": "",
+    "description": "O endpoint do control plane responde na internet. A autenticação continua exigindo IAM, mas a superfície de ataque e o risco de credential stuffing aumentam.",
+    "remediation": "Restrinja publicAccessCidrs à faixa corporativa ou desligue o acesso público e use acesso privado via VPN / SSM port forwarding.",
+    "pillar": "security",
+    "well_architected": "SEC05-BP01",
+    "permissions": [
+      "eks:ListClusters",
+      "eks:DescribeCluster"
+    ],
+    "evaluate": {
+      "resource": "eks.cluster",
+      "service": "eks",
+      "skip_if_none": true,
+      "operation": "describe_cluster",
+      "extract": "cluster.resourcesVpcConfig.endpointPublicAccess",
+      "operator": "truthy",
+      "severity": "low",
+      "exposure": [],
+      "title": "Cluster EKS '{var}' com API server público",
+      "overrides": [
+        {
+          "when": {
+            "operation": "describe_cluster",
+            "extract": "cluster.resourcesVpcConfig.publicAccessCidrs",
+            "operator": "contains",
+            "value": "0.0.0.0/0"
+          },
+          "severity": "high",
+          "title": "Cluster EKS '{var}' com API server público e sem restrição de CIDR",
+          "exposure": [
+            "internet_facing"
+          ]
+        }
+      ]
+    }
+  },
+  "EKS.CONTROL_PLANE_LOGS": {
+    "title": "Cluster EKS '{var}' sem logs de {var}",
+    "severity": "medium",
+    "description": "Sem audit log do Kubernetes não há como reconstruir ações dentro do cluster.",
+    "remediation": "Habilite api, audit e authenticator. Defina retenção no log group — o custo do audit em clusters grandes é relevante.",
+    "pillar": "security",
+    "well_architected": "SEC04-BP01",
+    "permissions": [
+      "eks:DescribeCluster"
+    ],
+    "evaluate": {
+      "resource": "eks.cluster",
+      "service": "eks",
+      "skip_if_none": true,
+      "operation": "describe_cluster",
+      "operator": "jsonpath",
+      "expression": "$.cluster.logging.clusterLogging[?(@.enabled == true)].types[*]",
+      "expected": "missing_any",
+      "value": [
+        "api",
+        "audit",
+        "authenticator"
+      ],
+      "exposure": []
+    }
+  }
+}

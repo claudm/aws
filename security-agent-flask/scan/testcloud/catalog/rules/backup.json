@@ -1,0 +1,24 @@
+{
+  "BACKUP.VAULT_NO_LOCK": {
+    "title": "Backup Vault '{var}' não possui Vault Lock ativado",
+    "severity": "high",
+    "description": "O cofre de backup '{var}' não possui proteção WORM (Write Once, Read Many). Atacantes com permissões administrativas (Ransomware) podem apagar os backups da empresa intencionalmente antes de iniciar a extorsão.",
+    "remediation": "Ative o Vault Lock nas opções do AWS Backup Vault, definindo o tempo mínimo e máximo de retenção inalterável.",
+    "pillar": "security",
+    "exposure": [
+      "data_store"
+    ],
+    "permissions": [
+      "backup:ListBackupVaults",
+      "backup:DescribeBackupVault"
+    ],
+    "evaluate": {
+      "resource": "backup.vault",
+      "service": "backup",
+      "operation": "describe_backup_vault",
+      "skip_if_none": true,
+      "extract": "Locked",
+      "operator": "falsy"
+    }
+  }
+}

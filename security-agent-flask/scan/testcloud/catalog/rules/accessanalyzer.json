@@ -1,0 +1,75 @@
+{
+  "ACCESSANALYZER.NOT_ENABLED": {
+    "title": "Access Analyzer não habilitado em {var}",
+    "severity": "low",
+    "description": "Não há detecção automática de recursos compartilhados com contas externas ou público.",
+    "remediation": "Crie um analyzer com zone of trust na organização — é gratuito.",
+    "pillar": "security",
+    "well_architected": "SEC03-BP07",
+    "permissions": [
+      "access-analyzer:ListAnalyzers"
+    ],
+    "evaluate": {
+      "resource": "accessanalyzer.region",
+      "service": "accessanalyzer",
+      "skip_if_none": true,
+      "operator": "and",
+      "conditions": [
+        {
+          "operation": "list_analyzers",
+          "extract": "analyzers",
+          "operator": "none_item",
+          "params": {
+            "type": "ACCOUNT"
+          },
+          "where": {
+            "extract": "status",
+            "operator": "equals",
+            "value": "ACTIVE"
+          }
+        },
+        {
+          "operator": "or",
+          "conditions": [
+            {
+              "operation": "describe_instances",
+              "extract": "Reservations",
+              "operator": "len_gt",
+              "value": 0,
+              "service": "ec2",
+              "params": {
+                "MaxResults": 5
+              }
+            },
+            {
+              "operation": "list_functions",
+              "extract": "Functions",
+              "operator": "len_gt",
+              "value": 0,
+              "service": "lambda",
+              "params": {
+                "MaxItems": 1
+              }
+            },
+            {
+              "operation": "describe_db_instances",
+              "extract": "DBInstances",
+              "operator": "len_gt",
+              "value": 0,
+              "service": "rds",
+              "params": {
+                "MaxRecords": 20
+              }
+            }
+          ]
+        }
+      ],
+      "vars": [
+        {
+          "value": "{region}"
+        }
+      ],
+      "exposure": []
+    }
+  }
+}

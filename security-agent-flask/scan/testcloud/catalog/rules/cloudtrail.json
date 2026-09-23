@@ -1,0 +1,87 @@
+{
+  "CLOUDTRAIL.NO_MULTI_REGION_TRAIL": {
+    "title": "Nenhum trail multi-região do CloudTrail está ativo",
+    "severity": "high",
+    "description": "Sem trail multi-região ativo, ações de API em regiões não cobertas não são registradas — inclusive as de um atacante que escolhe justamente essas regiões.",
+    "remediation": "Crie um trail com IsMultiRegionTrail=true e IncludeGlobalServiceEvents=true, entregando em um bucket de log account com Object Lock.",
+    "pillar": "security",
+    "scope": "global",
+    "well_architected": "SEC04-BP01",
+    "permissions": [
+      "cloudtrail:DescribeTrails",
+      "cloudtrail:GetTrailStatus"
+    ],
+    "evaluate": {
+      "resource": "cloudtrail.account",
+      "service": "cloudtrail",
+      "skip_if_none": true,
+      "operation": "describe_trails",
+      "extract": "trailList",
+      "operator": "none_item",
+      "params": {
+        "includeShadowTrails": true
+      },
+      "where": {
+        "operator": "and",
+        "conditions": [
+          {
+            "extract": "IsMultiRegionTrail",
+            "operator": "truthy"
+          },
+          {
+            "operation": "get_trail_status",
+            "extract": "IsLogging",
+            "operator": "truthy",
+            "params": {
+              "Name": "{item.TrailARN}"
+            },
+            "region": "{item.HomeRegion}"
+          }
+        ]
+      },
+      "region": "us-east-1",
+      "exposure": []
+    }
+  },
+  "CLOUDTRAIL.WEAK_TRAIL_CONFIG": {
+    "title": "Trail '{var}' com hardening incompleto",
+    "severity": "medium",
+    "description": "Trail '{var}': {var}.",
+    "remediation": "Ative log file validation, aponte uma CMK e envie para um log group com métricas/alarmes de eventos sensíveis (root login, mudanças de policy).",
+    "pillar": "security",
+    "scope": "global",
+    "well_architected": "SEC04-BP01",
+    "permissions": [
+      "cloudtrail:DescribeTrails",
+      "cloudtrail:GetTrail"
+    ],
+    "evaluate": {
+      "resource": "cloudtrail.trail",
+      "service": "cloudtrail",
+      "skip_if_none": true,
+      "operator": "or",
+      "conditions": [
+        {
+          "operation": "get_trail",
+          "extract": "Trail.LogFileValidationEnabled",
+          "operator": "falsy",
+          "label": "sem validação de integridade dos logs"
+        },
+        {
+          "operation": "get_trail",
+          "extract": "Trail.KmsKeyId",
+          "operator": "falsy",
+          "label": "sem criptografia com KMS"
+        },
+        {
+          "operation": "get_trail",
+          "extract": "Trail.CloudWatchLogsLogGroupArn",
+          "operator": "falsy",
+          "label": "sem entrega para CloudWatch Logs (dificulta alarmes em tempo real)"
+        }
+      ],
+      "join": "; ",
+      "exposure": []
+    }
+  }
+}

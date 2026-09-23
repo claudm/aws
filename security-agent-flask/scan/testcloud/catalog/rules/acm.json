@@ -1,0 +1,71 @@
+{
+  "ACM.CERTIFICATE_EXPIRING": {
+    "title": "Certificado ACM '{var}' expira em {var} dias",
+    "severity": "medium",
+    "description": "O certificado para {var} vence em {var} dias. Renovações automáticas podem estar falhando.",
+    "remediation": "Valide a configuração DNS ou o e-mail de aprovação para permitir a renovação automática do ACM.",
+    "pillar": "reliability",
+    "permissions": [
+      "acm:ListCertificates",
+      "acm:DescribeCertificate"
+    ],
+    "evaluate": {
+      "resource": "acm.certificate",
+      "service": "acm",
+      "skip_if_none": true,
+      "operator": "or",
+      "conditions": [
+        {
+          "operation": "describe_certificate",
+          "extract": "Certificate.Status",
+          "operator": "equals",
+          "value": "EXPIRED"
+        },
+        {
+          "operation": "describe_certificate",
+          "extract": "Certificate.NotAfter",
+          "operator": "days_until_between",
+          "value": [
+            0,
+            30
+          ]
+        }
+      ],
+      "severity": "medium",
+      "exposure": [
+        "internet_facing"
+      ],
+      "vars": [
+        {
+          "operation": "describe_certificate",
+          "extract": "Certificate.DomainName"
+        },
+        {
+          "operation": "describe_certificate",
+          "extract": "Certificate.NotAfter",
+          "transform": "days_until"
+        }
+      ],
+      "overrides": [
+        {
+          "when": {
+            "operation": "describe_certificate",
+            "extract": "Certificate.Status",
+            "operator": "equals",
+            "value": "EXPIRED"
+          },
+          "severity": "high",
+          "title": "Certificado ACM '{var}' expirou",
+          "description": "O certificado para o domínio {var} expirou e causará erros de segurança em navegadores e clientes TLS.",
+          "remediation": "Renove ou emita um novo certificado imediatamente.",
+          "vars": [
+            {
+              "operation": "describe_certificate",
+              "extract": "Certificate.DomainName"
+            }
+          ]
+        }
+      ]
+    }
+  }
+}

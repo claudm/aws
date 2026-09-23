@@ -1,0 +1,516 @@
+{
+  "EC2.SG_OPEN_SENSITIVE_PORT": {
+    "title": "Security group '{var}' expõe {var} para 0.0.0.0/0",
+    "severity": "",
+    "description": "",
+    "remediation": "Restrinja a origem a prefix lists corporativas ou ao CIDR da VPC. Para acesso administrativo, use SSM Session Manager e remova a regra.",
+    "pillar": "security",
+    "well_architected": "SEC05-BP01",
+    "permissions": [
+      "ec2:DescribeSecurityGroups",
+      "ec2:DescribeNetworkInterfaces"
+    ],
+    "evaluate": {
+      "resource": "ec2.security_group",
+      "service": "ec2",
+      "skip_if_none": true,
+      "operation": "describe_security_groups",
+      "extract": "SecurityGroups.0.IpPermissions",
+      "operator": "any_item",
+      "id": "open",
+      "where": {
+        "operator": "and",
+        "conditions": [
+          {
+            "operator": "or",
+            "conditions": [
+              {
+                "extract": "IpRanges",
+                "operator": "any_item",
+                "where": {
+                  "extract": "CidrIp",
+                  "operator": "equals",
+                  "value": "0.0.0.0/0"
+                }
+              },
+              {
+                "extract": "Ipv6Ranges",
+                "operator": "any_item",
+                "where": {
+                  "extract": "CidrIpv6",
+                  "operator": "equals",
+                  "value": "::/0"
+                }
+              }
+            ]
+          },
+          {
+            "operator": "range_hits",
+            "from": "FromPort",
+            "to": "ToPort",
+            "all_if": {
+              "field": "IpProtocol",
+              "equals": "-1"
+            },
+            "value": {
+              "22": "SSH",
+              "23": "Telnet",
+              "135": "RPC",
+              "139": "NetBIOS",
+              "445": "SMB",
+              "1433": "MSSQL",
+              "1521": "Oracle",
+              "2375": "Docker API",
+              "3306": "MySQL",
+              "3389": "RDP",
+              "5432": "PostgreSQL",
+              "5439": "Redshift",
+              "5601": "Kibana",
+              "6379": "Redis",
+              "9200": "Elasticsearch",
+              "9300": "Elasticsearch transport",
+              "11211": "Memcached",
+              "27017": "MongoDB"
+            }
+          }
+        ]
+      },
+      "severity": "high",
+      "exposure": [],
+      "vars": [
+        {
+          "capture": "open",
+          "field": "labels",
+          "transform": "join"
+        }
+      ],
+      "description": "O security group '{var}' libera {var} para a internet (0.0.0.0/0 ou ::/0). O grupo não está em uso no momento.",
+      "overrides": [
+        {
+          "when": {
+            "operation": "describe_network_interfaces",
+            "extract": "NetworkInterfaces",
+            "operator": "len_gt",
+            "value": 0,
+            "params": {
+              "Filters": [
+                {
+                  "Name": "group-id",
+                  "Values": "{GroupIds}"
+                }
+              ]
+            }
+          },
+          "severity": "critical",
+          "exposure": [
+            "internet_facing"
+          ],
+          "description": "O security group '{var}' libera {var} para a internet (0.0.0.0/0 ou ::/0) e está associado a recursos ativos."
+        }
+      ]
+    }
+  },
+  "EC2.DEFAULT_SG_PERMISSIVE": {
+    "title": "Security group default {var} da VPC {var} possui regras ativas",
+    "severity": "low",
+    "description": "O SG default é aplicado automaticamente a recursos criados sem SG explícito. Mantê-lo permissivo cria acesso implícito.",
+    "remediation": "Remova todas as regras de ingress/egress do SG default e crie SGs nomeados por workload.",
+    "pillar": "security",
+    "well_architected": "SEC05-BP01",
+    "permissions": [
+      "ec2:DescribeSecurityGroups"
+    ],
+    "evaluate": {
+      "resource": "ec2.security_group",
+      "service": "ec2",
+      "skip_if_none": true,
+      "operator": "and",
+      "conditions": [
+        {
+          "operation": "describe_security_groups",
+          "extract": "SecurityGroups.0.GroupName",
+          "operator": "equals",
+          "value": "default"
+        },
+        {
+          "operator": "or",
+          "conditions": [
+            {
+              "operation": "describe_security_groups",
+              "extract": "SecurityGroups.0.IpPermissions",
+              "operator": "len_gt",
+              "value": 0
+            },
+            {
+              "operation": "describe_security_groups",
+              "extract": "SecurityGroups.0.IpPermissionsEgress",
+              "operator": "len_gt",
+              "value": 1
+            }
+          ]
+        }
+      ],
+      "exposure": [],
+      "vars": [
+        {
+          "operation": "describe_security_groups",
+          "extract": "SecurityGroups.0.VpcId"
+        }
+      ]
+    }
+  },
+  "EC2.IMDSV2_NOT_REQUIRED": {
+    "title": "Instância {var} não exige IMDSv2",
+    "severity": "",
+    "description": "Com IMDSv1 habilitado, uma falha de SSRF na aplicação permite ler credenciais temporárias do instance profile via 169.254.169.254.",
+    "remediation": "aws ec2 modify-instance-metadata-options --instance-id <id> --http-tokens required --http-endpoint enabled. Ajuste também o launch template / AMI base.",
+    "pillar": "security",
+    "well_architected": "SEC06-BP02",
+    "permissions": [
+      "ec2:DescribeInstances"
+    ],
+    "evaluate": {
+      "resource": "ec2.instance",
+      "service": "ec2",
+      "skip_if_none": true,
+      "operator": "and",
+      "conditions": [
+        {
+          "operation": "describe_instances",
+          "extract": "Reservations.0.Instances.0.State.Name",
+          "operator": "not_in",
+          "value": [
+            "terminated",
+            "shutting-down"
+          ]
+        },
+        {
+          "operation": "describe_instances",
+          "extract": "Reservations.0.Instances.0.MetadataOptions.HttpTokens",
+          "operator": "not_equals",
+          "value": "required"
+        },
+        {
+          "operation": "describe_instances",
+          "extract": "Reservations.0.Instances.0.MetadataOptions.HttpEndpoint",
+          "operator": "not_equals",
+          "value": "disabled"
+        }
+      ],
+      "severity": "medium",
+      "exposure": [],
+      "env_tags": {
+        "operation": "describe_instances",
+        "extract": "Reservations.0.Instances.0.Tags"
+      },
+      "overrides": [
+        {
+          "when": {
+            "operation": "describe_instances",
+            "extract": "Reservations.0.Instances.0.IamInstanceProfile",
+            "operator": "truthy"
+          },
+          "severity": "high",
+          "exposure": [
+            "privileged_identity"
+          ],
+          "description": "Com IMDSv1 habilitado, uma falha de SSRF na aplicação permite ler credenciais temporárias do instance profile via 169.254.169.254. A instância tem um IAM role anexado."
+        }
+      ]
+    }
+  },
+  "EC2.EBS_UNENCRYPTED": {
+    "title": "Volume {var} ({var} GiB) não está criptografado",
+    "severity": "medium",
+    "description": "Dados em repouso sem criptografia; snapshots derivados também nascem sem proteção. Volume não anexado.",
+    "remediation": "Snapshot > copiar snapshot com Encrypted=true > recriar volume > trocar na instância. Ative EBS encryption by default para impedir novos volumes sem chave.",
+    "pillar": "security",
+    "well_architected": "SEC08-BP02",
+    "permissions": [
+      "ec2:DescribeVolumes"
+    ],
+    "evaluate": {
+      "resource": "ec2.volume",
+      "service": "ec2",
+      "skip_if_none": true,
+      "operation": "describe_volumes",
+      "extract": "Volumes.0.Encrypted",
+      "operator": "falsy",
+      "exposure": [
+        "data_store"
+      ],
+      "vars": [
+        {
+          "extract": "Volumes.0.Size"
+        },
+        {
+          "extract": "Volumes.0.Attachments.0.InstanceId"
+        }
+      ],
+      "env_tags": {
+        "operation": "describe_volumes",
+        "extract": "Volumes.0.Tags"
+      },
+      "overrides": [
+        {
+          "when": {
+            "operation": "describe_volumes",
+            "extract": "Volumes.0.Attachments",
+            "operator": "len_gt",
+            "value": 0
+          },
+          "description": "Dados em repouso sem criptografia; snapshots derivados também nascem sem proteção. O volume {var} ({var} GiB) está anexado a {var}."
+        }
+      ]
+    }
+  },
+  "EC2.EBS_DEFAULT_ENCRYPTION_OFF": {
+    "title": "EBS encryption by default desabilitado em {var}",
+    "severity": "medium",
+    "description": "Novos volumes e snapshots nascem sem criptografia nesta região.",
+    "remediation": "EC2 > Settings > Data protection and security > Always encrypt new EBS volumes.",
+    "pillar": "security",
+    "well_architected": "SEC08-BP02",
+    "permissions": [
+      "ec2:GetEbsEncryptionByDefault"
+    ],
+    "evaluate": {
+      "resource": "ec2.region",
+      "service": "ec2",
+      "skip_if_none": true,
+      "operation": "get_ebs_encryption_by_default",
+      "extract": "EbsEncryptionByDefault",
+      "operator": "falsy",
+      "exposure": [],
+      "vars": [
+        {
+          "value": "{region}"
+        }
+      ]
+    }
+  },
+  "EC2.SNAPSHOT_PUBLIC": {
+    "title": "Snapshot {var} compartilhado com contas externas",
+    "severity": "medium",
+    "description": "Snapshot {var} compartilhado com: {var}.",
+    "remediation": "Valide se o compartilhamento ainda é necessário e revogue o que não for.",
+    "pillar": "security",
+    "well_architected": "SEC01-BP02",
+    "permissions": [
+      "ec2:DescribeSnapshots",
+      "ec2:DescribeSnapshotAttribute"
+    ],
+    "evaluate": {
+      "resource": "ec2.snapshot",
+      "service": "ec2",
+      "skip_if_none": true,
+      "operator": "or",
+      "conditions": [
+        {
+          "operation": "describe_snapshot_attribute",
+          "operator": "jsonpath",
+          "expression": "$.CreateVolumePermissions[?(@.Group=='all')]",
+          "expected": "not_empty"
+        },
+        {
+          "operation": "describe_snapshot_attribute",
+          "operator": "jsonpath",
+          "expression": "$.CreateVolumePermissions[*].UserId",
+          "expected": "not_empty"
+        }
+      ],
+      "params": {
+        "Attribute": "createVolumePermission"
+      },
+      "exposure": [
+        "cross_account",
+        "data_store"
+      ],
+      "overrides": [
+        {
+          "when": {
+            "operation": "describe_snapshot_attribute",
+            "operator": "jsonpath",
+            "expression": "$.CreateVolumePermissions[?(@.Group=='all')]",
+            "expected": "not_empty"
+          },
+          "severity": "critical",
+          "title": "Snapshot {var} está público",
+          "description": "Qualquer conta AWS pode criar um volume a partir deste snapshot e ler os dados.",
+          "remediation": "ec2 modify-snapshot-attribute --operation-type remove --group-names all (imediato).",
+          "exposure": [
+            "internet_facing",
+            "data_store"
+          ]
+        }
+      ]
+    }
+  },
+  "COST.EBS_UNATTACHED": {
+    "title": "Volume {var} ({var} GiB {var}) sem anexo",
+    "severity": "",
+    "description": "O volume {var} ({var} GiB {var}) está no estado 'available' (criado há {var} dias) e continua sendo cobrado integralmente.",
+    "remediation": "Tire um snapshot final e delete o volume. Automatize com uma regra de lifecycle/tag.",
+    "pillar": "cost",
+    "well_architected": "COST04-BP03",
+    "permissions": [
+      "ec2:DescribeVolumes"
+    ],
+    "evaluate": {
+      "resource": "ec2.volume",
+      "service": "ec2",
+      "skip_if_none": true,
+      "operation": "describe_volumes",
+      "extract": "Volumes.0.State",
+      "operator": "equals",
+      "value": "available",
+      "severity": "low",
+      "exposure": [
+        "empty_resource"
+      ],
+      "vars": [
+        {
+          "operation": "describe_volumes",
+          "extract": "Volumes.0.Size"
+        },
+        {
+          "operation": "describe_volumes",
+          "extract": "Volumes.0.VolumeType"
+        },
+        {
+          "operation": "describe_volumes",
+          "extract": "Volumes.0.CreateTime",
+          "transform": "days_since"
+        }
+      ],
+      "waste": {
+        "fn": "ebs_monthly",
+        "args": [
+          {
+            "operation": "describe_volumes",
+            "extract": "Volumes.0.VolumeType",
+            "default": "gp2"
+          },
+          {
+            "operation": "describe_volumes",
+            "extract": "Volumes.0.Size",
+            "default": 0
+          },
+          {
+            "operation": "describe_volumes",
+            "extract": "Volumes.0.Iops",
+            "default": 0
+          },
+          {
+            "operation": "describe_volumes",
+            "extract": "Volumes.0.Throughput",
+            "default": 0
+          }
+        ]
+      },
+      "overrides": [
+        {
+          "when": {
+            "capture": "waste",
+            "extract": "value",
+            "operator": "gte",
+            "value": 10
+          },
+          "severity": "medium"
+        }
+      ]
+    }
+  },
+  "COST.GP2_VOLUMES": {
+    "title": "{var} volume(s) gp2 ({var} GiB) ainda não migrados para gp3",
+    "severity": "low",
+    "description": "gp3 custa ~20% menos por GiB e entrega 3.000 IOPS / 125 MB/s de baseline sem depender do tamanho do volume.",
+    "remediation": "modify-volume --volume-type gp3 é online e sem downtime. Valide antes volumes grandes que dependem do burst de IOPS proporcional do gp2.",
+    "pillar": "cost",
+    "well_architected": "COST05-BP04",
+    "permissions": [
+      "ec2:DescribeVolumes"
+    ],
+    "evaluate": {
+      "resource": "ec2.gp2_fleet",
+      "service": "ec2",
+      "skip_if_none": true,
+      "operation": "describe_volumes",
+      "extract": "Volumes",
+      "operator": "any_item",
+      "id": "gp2",
+      "sum": "Size",
+      "collect": "VolumeId",
+      "where": {
+        "extract": "VolumeId",
+        "operator": "truthy"
+      },
+      "params": {
+        "Filters": [
+          {
+            "Name": "volume-type",
+            "Values": [
+              "gp2"
+            ]
+          }
+        ]
+      },
+      "exposure": [],
+      "vars": [
+        {
+          "capture": "gp2",
+          "field": "count"
+        },
+        {
+          "capture": "gp2",
+          "field": "sum"
+        }
+      ],
+      "waste": {
+        "fn": "gp2_to_gp3_saving",
+        "args": [
+          {
+            "capture": "gp2",
+            "field": "sum"
+          }
+        ]
+      },
+      "evidence": {
+        "volume_ids": {
+          "capture": "gp2",
+          "field": "values"
+        }
+      }
+    }
+  },
+  "COST.EIP_UNASSOCIATED": {
+    "title": "Elastic IP {var} não está associado",
+    "severity": "low",
+    "description": "Endereços IPv4 públicos são cobrados por hora mesmo sem uso.",
+    "remediation": "Release o endereço, ou associe-o se ele estiver reservado para failover.",
+    "pillar": "cost",
+    "well_architected": "COST04-BP03",
+    "permissions": [
+      "ec2:DescribeAddresses"
+    ],
+    "evaluate": {
+      "resource": "ec2.address",
+      "service": "ec2",
+      "skip_if_none": true,
+      "operation": "describe_addresses",
+      "extract": "Addresses.0.AssociationId",
+      "operator": "falsy",
+      "exposure": [
+        "empty_resource"
+      ],
+      "waste": {
+        "fn": "hourly_monthly",
+        "args": [
+          {
+            "const": "EIP_IDLE_HOUR"
+          }
+        ]
+      }
+    }
+  }
+}

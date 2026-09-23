@@ -1,0 +1,25 @@
+{
+  "SNS.NOT_ENCRYPTED": {
+    "title": "Tópico SNS '{var}' sem criptografia KMS",
+    "severity": "medium",
+    "description": "Sem KmsMasterKeyId, as mensagens são criptografadas com a chave gerenciada pela AWS (aws/sns). Sem uma CMK não há controle de quem pode descriptografar nem trilha de uso da chave no CloudTrail.",
+    "remediation": "Crie uma CMK e associe ao tópico (KmsMasterKeyId). A key policy precisa permitir sns:Publish e sns:Subscribe para o serviço SNS.",
+    "pillar": "security",
+    "well_architected": "SEC08-BP02",
+    "exposure": [
+      "data_store"
+    ],
+    "permissions": [
+      "sns:ListTopics",
+      "sns:GetTopicAttributes"
+    ],
+    "evaluate": {
+      "resource": "sns.topic",
+      "service": "sns",
+      "operation": "get_topic_attributes",
+      "skip_if_none": true,
+      "extract": "Attributes.KmsMasterKeyId",
+      "operator": "falsy"
+    }
+  }
+}

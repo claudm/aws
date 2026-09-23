@@ -1,0 +1,24 @@
+{
+  "APPSYNC.WAF_DISABLED": {
+    "title": "API AppSync '{var}' não está protegida pelo WAF",
+    "severity": "high",
+    "description": "A API GraphQL '{var}' não possui um WebACL do WAFv2 associado. APIs GraphQL são altamente vulneráveis a scraping de schema e query introspection maliciosas.",
+    "remediation": "Crie e associe um WebACL do AWS WAFv2 à API GraphQL.",
+    "pillar": "security",
+    "exposure": [
+      "internet_facing"
+    ],
+    "permissions": [
+      "appsync:ListGraphqlApis",
+      "appsync:GetGraphqlApi"
+    ],
+    "evaluate": {
+      "resource": "appsync.graphql_api",
+      "service": "appsync",
+      "operation": "get_graphql_api",
+      "skip_if_none": true,
+      "extract": "graphqlApi.wafWebAclArn",
+      "operator": "falsy"
+    }
+  }
+}

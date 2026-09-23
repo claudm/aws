@@ -1,0 +1,28 @@
+{
+  "STEPFUNCTIONS.LOGGING_DISABLED": {
+    "title": "Step Function '{var}' está com os logs desativados",
+    "severity": "medium",
+    "description": "A state machine '{var}' não possui configuração de envio de logs de execução para o CloudWatch (nível OFF).",
+    "remediation": "Nas configurações da state machine, ative o logging selecionando o nível ALL, ERROR ou FATAL.",
+    "pillar": "security",
+    "exposure": [
+      "compute"
+    ],
+    "permissions": [
+      "states:ListStateMachines",
+      "states:DescribeStateMachine"
+    ],
+    "evaluate": {
+      "resource": "states.state_machine",
+      "service": "stepfunctions",
+      "operation": "describe_state_machine",
+      "skip_if_none": true,
+      "extract": "loggingConfiguration.level",
+      "operator": "in",
+      "value": [
+        null,
+        "OFF"
+      ]
+    }
+  }
+}

@@ -1,0 +1,23 @@
+{
+  "CLOUDWATCH.LOG_GROUP_NEVER_EXPIRE": {
+    "title": "Log Group '{var}' com retenção infinita",
+    "severity": "low",
+    "description": "O Log Group '{var}' está configurado como 'Never Expire'. A AWS continuará cobrando pelo armazenamento indefinidamente mesmo quando esses logs antigos perderem a validade técnica e legal.",
+    "remediation": "Configure uma política de retenção no Log Group (ex: 30, 90, ou 365 dias) de acordo com as regras de compliance da empresa.",
+    "pillar": "cost",
+    "exposure": [
+      "empty_resource"
+    ],
+    "permissions": [
+      "logs:DescribeLogGroups"
+    ],
+    "evaluate": {
+      "resource": "logs.log_group",
+      "service": "logs",
+      "operation": "describe_log_groups",
+      "skip_if_none": true,
+      "extract": "logGroups.0.retentionInDays",
+      "operator": "falsy"
+    }
+  }
+}

@@ -1,0 +1,56 @@
+{
+  "KMS.KEY_ROTATION_DISABLED": {
+    "title": "CMK {var} sem rotação automática",
+    "severity": "low",
+    "description": "A chave {var} usa o mesmo material criptográfico indefinidamente.",
+    "remediation": "kms enable-key-rotation — transparente, sem re-criptografar dados existentes.",
+    "pillar": "security",
+    "well_architected": "SEC08-BP01",
+    "permissions": [
+      "kms:ListKeys",
+      "kms:DescribeKey",
+      "kms:GetKeyRotationStatus"
+    ],
+    "evaluate": {
+      "resource": "kms.key",
+      "service": "kms",
+      "skip_if_none": true,
+      "operator": "and",
+      "conditions": [
+        {
+          "operation": "describe_key",
+          "extract": "KeyMetadata.KeyManager",
+          "operator": "equals",
+          "value": "CUSTOMER"
+        },
+        {
+          "operation": "describe_key",
+          "extract": "KeyMetadata.KeyState",
+          "operator": "equals",
+          "value": "Enabled"
+        },
+        {
+          "operation": "describe_key",
+          "extract": "KeyMetadata.KeySpec",
+          "operator": "in",
+          "value": [
+            "SYMMETRIC_DEFAULT",
+            null
+          ]
+        },
+        {
+          "operation": "describe_key",
+          "extract": "KeyMetadata.Origin",
+          "operator": "not_equals",
+          "value": "EXTERNAL"
+        },
+        {
+          "operation": "get_key_rotation_status",
+          "extract": "KeyRotationEnabled",
+          "operator": "falsy"
+        }
+      ],
+      "exposure": []
+    }
+  }
+}

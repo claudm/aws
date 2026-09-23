@@ -1,0 +1,247 @@
+{
+  "DYNAMODB.PITR_DISABLED": {
+    "title": "Tabela DynamoDB '{var}' sem point-in-time recovery",
+    "severity": "medium",
+    "description": "Sem PITR não há restauração para um instante anterior após escrita ou delete indevido.",
+    "remediation": "Ative PITR (35 dias de janela). O custo é proporcional ao tamanho da tabela.",
+    "pillar": "reliability",
+    "well_architected": "REL09-BP01",
+    "permissions": [
+      "dynamodb:ListTables",
+      "dynamodb:DescribeContinuousBackups"
+    ],
+    "evaluate": {
+      "resource": "dynamodb.table",
+      "service": "dynamodb",
+      "skip_if_none": true,
+      "operation": "describe_continuous_backups",
+      "extract": "ContinuousBackupsDescription.PointInTimeRecoveryDescription.PointInTimeRecoveryStatus",
+      "operator": "not_equals",
+      "value": "ENABLED",
+      "exposure": [
+        "data_store"
+      ]
+    }
+  },
+  "DYNAMODB.NO_AUTOSCALING": {
+    "title": "Tabela DynamoDB '{var}' provisionada sem capacidade definida",
+    "severity": "low",
+    "description": "A tabela usa billing provisioned, mas sem capacidade mínima/máxima definida não há como o Application Auto Scaling ajustar a capacidade com a demanda.",
+    "remediation": "Defina ReadCapacityUnits/WriteCapacityUnits e configure auto scaling via Application Auto Scaling (ou migre para on-demand se o tráfego for imprevisível).",
+    "pillar": "reliability",
+    "well_architected": "REL13-BP02",
+    "permissions": [
+      "dynamodb:ListTables",
+      "dynamodb:DescribeTable"
+    ],
+    "evaluate": {
+      "resource": "dynamodb.table",
+      "service": "dynamodb",
+      "skip_if_none": true,
+      "operator": "and",
+      "conditions": [
+        {
+          "operation": "describe_table",
+          "extract": "Table.BillingModeSummary.BillingMode",
+          "operator": "not_equals",
+          "value": "PAY_PER_REQUEST"
+        },
+        {
+          "operator": "or",
+          "conditions": [
+            {
+              "operation": "describe_table",
+              "extract": "Table.ProvisionedThroughput.ReadCapacityUnits",
+              "operator": "falsy"
+            },
+            {
+              "operation": "describe_table",
+              "extract": "Table.ProvisionedThroughput.WriteCapacityUnits",
+              "operator": "falsy"
+            }
+          ]
+        }
+      ],
+      "exposure": [
+        "data_store"
+      ]
+    }
+  },
+  "COST.DYNAMODB_PROVISIONED": {
+    "title": "Tabela DynamoDB '{var}' usa menos de 30% da capacidade provisionada",
+    "severity": "low",
+    "description": "Na tabela '{var}', o pico de leitura foi {var} de {var} RCU e o de escrita {var} de {var} WCU nos últimos 14 dias. Capacidade provisionada é cobrada por hora, usada ou não.",
+    "remediation": "Reduza RCU/WCU para o pico com folga e ative Application Auto Scaling, ou migre para on-demand (PAY_PER_REQUEST) se o tráfego for esporádico.",
+    "pillar": "cost",
+    "well_architected": "COST06-BP03",
+    "exposure": [
+      "data_store"
+    ],
+    "permissions": [
+      "dynamodb:DescribeTable",
+      "cloudwatch:GetMetricData"
+    ],
+    "evaluate": {
+      "resource": "dynamodb.table",
+      "service": "dynamodb",
+      "skip_if_none": true,
+      "operator": "and",
+      "conditions": [
+        {
+          "operation": "describe_table",
+          "extract": "Table.BillingModeSummary.BillingMode",
+          "operator": "not_equals",
+          "value": "PAY_PER_REQUEST"
+        },
+        {
+          "operator": "or",
+          "conditions": [
+            {
+              "operation": "describe_table",
+              "extract": "Table.ProvisionedThroughput.ReadCapacityUnits",
+              "operator": "gte",
+              "value": 10
+            },
+            {
+              "operation": "describe_table",
+              "extract": "Table.ProvisionedThroughput.WriteCapacityUnits",
+              "operator": "gte",
+              "value": 10
+            }
+          ]
+        },
+        {
+          "operation": "get_metric_data",
+          "service": "cloudwatch",
+          "batch": true,
+          "params": {
+            "MetricDataQueries": [
+              {
+                "Id": "m",
+                "ReturnData": false,
+                "MetricStat": {
+                  "Metric": {
+                    "Namespace": "AWS/DynamoDB",
+                    "MetricName": "ConsumedReadCapacityUnits",
+                    "Dimensions": [
+                      {
+                        "Name": "TableName",
+                        "Value": "{TableName}"
+                      }
+                    ]
+                  },
+                  "Period": 3600,
+                  "Stat": "Sum"
+                }
+              },
+              {
+                "Id": "result",
+                "Expression": "m/PERIOD(m)",
+                "ReturnData": true
+              }
+            ],
+            "StartTime": "{now-14d}",
+            "EndTime": "{now}"
+          },
+          "operator": "aggregate",
+          "extract": "MetricDataResults.0.Values",
+          "fn": "max",
+          "compare": "lt",
+          "min_count": 24,
+          "id": "read",
+          "value_from": {
+            "operation": "describe_table",
+            "extract": "Table.ProvisionedThroughput.ReadCapacityUnits"
+          },
+          "factor": 0.3
+        },
+        {
+          "operation": "get_metric_data",
+          "service": "cloudwatch",
+          "batch": true,
+          "params": {
+            "MetricDataQueries": [
+              {
+                "Id": "m",
+                "ReturnData": false,
+                "MetricStat": {
+                  "Metric": {
+                    "Namespace": "AWS/DynamoDB",
+                    "MetricName": "ConsumedWriteCapacityUnits",
+                    "Dimensions": [
+                      {
+                        "Name": "TableName",
+                        "Value": "{TableName}"
+                      }
+                    ]
+                  },
+                  "Period": 3600,
+                  "Stat": "Sum"
+                }
+              },
+              {
+                "Id": "result",
+                "Expression": "m/PERIOD(m)",
+                "ReturnData": true
+              }
+            ],
+            "StartTime": "{now-14d}",
+            "EndTime": "{now}"
+          },
+          "operator": "aggregate",
+          "extract": "MetricDataResults.0.Values",
+          "fn": "max",
+          "compare": "lt",
+          "min_count": 24,
+          "id": "write",
+          "value_from": {
+            "operation": "describe_table",
+            "extract": "Table.ProvisionedThroughput.WriteCapacityUnits"
+          },
+          "factor": 0.3
+        }
+      ],
+      "vars": [
+        {
+          "capture": "read",
+          "transform": "round"
+        },
+        {
+          "operation": "describe_table",
+          "extract": "Table.ProvisionedThroughput.ReadCapacityUnits"
+        },
+        {
+          "capture": "write",
+          "transform": "round"
+        },
+        {
+          "operation": "describe_table",
+          "extract": "Table.ProvisionedThroughput.WriteCapacityUnits"
+        }
+      ],
+      "waste": {
+        "fn": "ddb_provisioned_saving",
+        "args": [
+          {
+            "operation": "describe_table",
+            "extract": "Table.ProvisionedThroughput.ReadCapacityUnits",
+            "default": 0
+          },
+          {
+            "operation": "describe_table",
+            "extract": "Table.ProvisionedThroughput.WriteCapacityUnits",
+            "default": 0
+          },
+          {
+            "capture": "read",
+            "default": 0
+          },
+          {
+            "capture": "write",
+            "default": 0
+          }
+        ]
+      }
+    }
+  }
+}

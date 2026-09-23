@@ -1,0 +1,23 @@
+{
+  "EMR.BLOCK_PUBLIC_ACCESS_DISABLED": {
+    "title": "EMR Block Public Access está desativado na região",
+    "severity": "high",
+    "description": "A configuração global de Block Public Access do EMR para a região está desativada, permitindo a criação de clusters com portas abertas para a internet (0.0.0.0/0).",
+    "remediation": "Ative o Block Public Access nas configurações do EMR da sua conta.",
+    "pillar": "security",
+    "exposure": [
+      "internet_facing"
+    ],
+    "permissions": [
+      "elasticmapreduce:GetBlockPublicAccessConfiguration"
+    ],
+    "evaluate": {
+      "resource": "emr.account",
+      "service": "emr",
+      "operation": "get_block_public_access_configuration",
+      "skip_if_none": true,
+      "extract": "BlockPublicAccessConfiguration.BlockPublicSecurityGroupRules",
+      "operator": "falsy"
+    }
+  }
+}

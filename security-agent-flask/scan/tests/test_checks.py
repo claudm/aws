@@ -7,21 +7,14 @@ real de resposta das APIs, sem tocar em nenhuma conta AWS.
 from __future__ import annotations
 
 import datetime as dt
+import json
+from urllib.parse import quote
 
 import boto3
 import pytest
 from botocore.stub import ANY, Stubber
 
-from testcloud.checks import (
-    cloudfront,
-    compute,
-    cost,
-    databases,
-    ec2,
-    iam,
-    sns,
-    sqs,
-)
+import testcloud.checks  # noqa: F401  (popula o registry)
 from testcloud.context import ScanContext, SessionFactory
 from testcloud.models import Severity
 from testcloud.registry import all_checks, select
@@ -54,6 +47,12 @@ def stub(ctx, service):
     client = ctx.session.client(service, region_name=ctx.region)
     attach(ctx, service, client)
     return client, Stubber(client)
+
+
+def list_then_detail(stubber, operation, response, detail_params, list_params=None):
+    """Mesma resposta para a listagem do provider e para a chamada por recurso do JSON."""
+    stubber.add_response(operation, response, list_params or {})
+    stubber.add_response(operation, response, detail_params)
 
 
 # ----------------------------------------------------------------- registry
@@ -154,7 +153,8 @@ def test_select_filters_by_pillar():
 def test_sg_open_ssh_is_critical_when_attached():
     ctx = make_ctx()
     client, stubber = stub(ctx, "ec2")
-    stubber.add_response(
+    list_then_detail(
+        stubber,
         "describe_security_groups",
         {
             "SecurityGroups": [
@@ -177,17 +177,16 @@ def test_sg_open_ssh_is_critical_when_attached():
                 }
             ]
         },
-        {},
+        {"GroupIds": ["sg-01"]},
     )
-    stubber.add_response("describe_instances", {"Reservations": []}, {})
     stubber.add_response(
         "describe_network_interfaces",
         {"NetworkInterfaces": [{"NetworkInterfaceId": "eni-1", "Groups": [{"GroupId": "sg-01"}]}]},
-        {},
+        {"Filters": [{"Name": "group-id", "Values": ["sg-01"]}]},
     )
     with stubber:
         ctx.current_check = next(c for c in all_checks() if c.id == "EC2.SG_OPEN_SENSITIVE_PORT")
-        findings = list(ec2.sg_open_ports(ctx))
+        findings = ctx.current_check.run(ctx)
 
     assert len(findings) == 1
     f = findings[0]
@@ -199,7 +198,8 @@ def test_sg_open_ssh_is_critical_when_attached():
 def test_sg_open_port_unattached_is_downgraded():
     ctx = make_ctx()
     client, stubber = stub(ctx, "ec2")
-    stubber.add_response(
+    list_then_detail(
+        stubber,
         "describe_security_groups",
         {
             "SecurityGroups": [
@@ -220,13 +220,16 @@ def test_sg_open_port_unattached_is_downgraded():
                 }
             ]
         },
-        {},
+        {"GroupIds": ["sg-02"]},
     )
-    stubber.add_response("describe_instances", {"Reservations": []}, {})
-    stubber.add_response("describe_network_interfaces", {"NetworkInterfaces": []}, {})
+    stubber.add_response(
+        "describe_network_interfaces",
+        {"NetworkInterfaces": []},
+        {"Filters": [{"Name": "group-id", "Values": ["sg-02"]}]},
+    )
     with stubber:
         ctx.current_check = next(c for c in all_checks() if c.id == "EC2.SG_OPEN_SENSITIVE_PORT")
-        findings = list(ec2.sg_open_ports(ctx))
+        findings = ctx.current_check.run(ctx)
 
     assert findings[0].severity is Severity.HIGH
 
@@ -234,7 +237,8 @@ def test_sg_open_port_unattached_is_downgraded():
 def test_sg_internal_cidr_is_not_flagged():
     ctx = make_ctx()
     client, stubber = stub(ctx, "ec2")
-    stubber.add_response(
+    list_then_detail(
+        stubber,
         "describe_security_groups",
         {
             "SecurityGroups": [
@@ -255,17 +259,18 @@ def test_sg_internal_cidr_is_not_flagged():
                 }
             ]
         },
-        {},
+        {"GroupIds": ["sg-03"]},
     )
     with stubber:
         ctx.current_check = next(c for c in all_checks() if c.id == "EC2.SG_OPEN_SENSITIVE_PORT")
-        assert list(ec2.sg_open_ports(ctx)) == []
+        assert ctx.current_check.run(ctx) == []
 
 
 def test_imdsv1_with_instance_profile_is_high():
     ctx = make_ctx()
     client, stubber = stub(ctx, "ec2")
-    stubber.add_response(
+    list_then_detail(
+        stubber,
         "describe_instances",
         {
             "Reservations": [
@@ -283,11 +288,11 @@ def test_imdsv1_with_instance_profile_is_high():
                 }
             ]
         },
-        {},
+        {"InstanceIds": ["i-0abc"]},
     )
     with stubber:
         ctx.current_check = next(c for c in all_checks() if c.id == "EC2.IMDSV2_NOT_REQUIRED")
-        findings = list(ec2.imdsv2(ctx))
+        findings = ctx.current_check.run(ctx)
 
     assert findings[0].severity is Severity.HIGH
     assert "privileged_identity" in findings[0].exposure
@@ -298,7 +303,8 @@ def test_imdsv1_with_instance_profile_is_high():
 def test_rds_public_instance_is_critical():
     ctx = make_ctx()
     client, stubber = stub(ctx, "rds")
-    stubber.add_response(
+    list_then_detail(
+        stubber,
         "describe_db_instances",
         {
             "DBInstances": [
@@ -316,11 +322,11 @@ def test_rds_public_instance_is_critical():
                 }
             ]
         },
-        {},
+        {"DBInstanceIdentifier": "core-db"},
     )
     with stubber:
         ctx.current_check = next(c for c in all_checks() if c.id == "RDS.PUBLICLY_ACCESSIBLE")
-        findings = list(databases.rds_public(ctx))
+        findings = ctx.current_check.run(ctx)
 
     assert findings[0].severity is Severity.CRITICAL
     assert findings[0].resource_arn.endswith("db:core-db")
@@ -329,7 +335,8 @@ def test_rds_public_instance_is_critical():
 def test_rds_backup_retention_zero_is_high():
     ctx = make_ctx()
     client, stubber = stub(ctx, "rds")
-    stubber.add_response(
+    list_then_detail(
+        stubber,
         "describe_db_instances",
         {
             "DBInstances": [
@@ -341,11 +348,11 @@ def test_rds_backup_retention_zero_is_high():
                 }
             ]
         },
-        {},
+        {"DBInstanceIdentifier": "scratch"},
     )
     with stubber:
         ctx.current_check = next(c for c in all_checks() if c.id == "RDS.BACKUP_RETENTION")
-        findings = list(databases.rds_backups(ctx))
+        findings = ctx.current_check.run(ctx)
 
     assert findings[0].severity is Severity.HIGH
 
@@ -354,7 +361,8 @@ def test_rds_backup_retention_zero_is_high():
 def test_unattached_volume_estimates_monthly_cost():
     ctx = make_ctx()
     client, stubber = stub(ctx, "ec2")
-    stubber.add_response(
+    list_then_detail(
+        stubber,
         "describe_volumes",
         {
             "Volumes": [
@@ -371,11 +379,11 @@ def test_unattached_volume_estimates_monthly_cost():
                 }
             ]
         },
-        {},
+        {"VolumeIds": ["vol-01"]},
     )
     with stubber:
         ctx.current_check = next(c for c in all_checks() if c.id == "COST.EBS_UNATTACHED")
-        findings = list(cost.unattached_volumes(ctx))
+        findings = ctx.current_check.run(ctx)
 
     assert findings[0].monthly_waste_usd == pytest.approx(40.0)  # 500 GiB * US$0,08
     assert findings[0].severity is Severity.MEDIUM
@@ -384,7 +392,8 @@ def test_unattached_volume_estimates_monthly_cost():
 def test_attached_volume_is_ignored_by_cost_check():
     ctx = make_ctx()
     client, stubber = stub(ctx, "ec2")
-    stubber.add_response(
+    list_then_detail(
+        stubber,
         "describe_volumes",
         {
             "Volumes": [
@@ -399,40 +408,34 @@ def test_attached_volume_is_ignored_by_cost_check():
                 }
             ]
         },
-        {},
+        {"VolumeIds": ["vol-02"]},
     )
     with stubber:
         ctx.current_check = next(c for c in all_checks() if c.id == "COST.EBS_UNATTACHED")
-        assert list(cost.unattached_volumes(ctx)) == []
+        assert ctx.current_check.run(ctx) == []
 
 
 # ------------------------------------------------------------------ lambda
 def test_lambda_secret_heuristic_ignores_arn_references():
     ctx = make_ctx()
     client, stubber = stub(ctx, "lambda")
-    stubber.add_response(
-        "list_functions",
-        {
-            "Functions": [
-                {
-                    "FunctionName": "billing",
-                    "FunctionArn": "arn:aws:lambda:us-east-1:123456789012:function:billing",
-                    "Runtime": "python3.12",
-                    "Environment": {
-                        "Variables": {
-                            "DB_PASSWORD": "hunter2",
-                            "API_KEY_ARN": "arn:aws:secretsmanager:us-east-1:123456789012:secret:k",
-                            "LOG_LEVEL": "info",
-                        }
-                    },
-                }
-            ]
+    fn = {
+        "FunctionName": "billing",
+        "FunctionArn": "arn:aws:lambda:us-east-1:123456789012:function:billing",
+        "Runtime": "python3.12",
+        "Environment": {
+            "Variables": {
+                "DB_PASSWORD": "hunter2",
+                "API_KEY_ARN": "arn:aws:secretsmanager:us-east-1:123456789012:secret:k",
+                "LOG_LEVEL": "info",
+            }
         },
-        {},
-    )
+    }
+    stubber.add_response("list_functions", {"Functions": [fn]}, {})
+    stubber.add_response("get_function_configuration", fn, {"FunctionName": "billing"})
     with stubber:
         ctx.current_check = next(c for c in all_checks() if c.id == "LAMBDA.PLAINTEXT_SECRET")
-        findings = list(compute.plaintext_secret(ctx))
+        findings = ctx.current_check.run(ctx)
 
     assert findings[0].evidence["suspect_keys"] == ["DB_PASSWORD"]
     # O valor do segredo nunca é copiado para o finding.
@@ -440,15 +443,36 @@ def test_lambda_secret_heuristic_ignores_arn_references():
 
 
 # --------------------------------------------------------------------- iam
+def _wildcard_findings(document):
+    """Roda IAM.WILDCARD_ADMIN_POLICY contra uma policy local com o documento dado."""
+    ctx = make_ctx()
+    client, stubber = stub(ctx, "iam")
+    arn = "arn:aws:iam::123456789012:policy/p"
+    stubber.add_response(
+        "list_policies",
+        {"Policies": [{"PolicyName": "p", "Arn": arn, "DefaultVersionId": "v1", "AttachmentCount": 2}]},
+        {"Scope": "Local", "OnlyAttached": True},
+    )
+    stubber.add_response(
+        "get_policy_version",
+        {"PolicyVersion": {"Document": quote(json.dumps(document)), "VersionId": "v1"}},
+        {"PolicyArn": arn, "VersionId": "v1"},
+    )
+    stubber.add_response("get_policy", {"Policy": {"PolicyName": "p", "AttachmentCount": 2}}, {"PolicyArn": arn})
+    with stubber:
+        ctx.current_check = next(c for c in all_checks() if c.id == "IAM.WILDCARD_ADMIN_POLICY")
+        return ctx.current_check.run(ctx)
+
+
 def test_wildcard_policy_detection():
-    assert iam._policy_is_wildcard_admin(
+    assert _wildcard_findings(
         {"Statement": [{"Effect": "Allow", "Action": "*", "Resource": "*"}]}
     )
-    assert not iam._policy_is_wildcard_admin(
+    assert not _wildcard_findings(
         {"Statement": [{"Effect": "Allow", "Action": "s3:*", "Resource": "*"}]}
     )
     # Wildcard com condição (ex.: restrição por região/MFA) não é admin irrestrito.
-    assert not iam._policy_is_wildcard_admin(
+    assert not _wildcard_findings(
         {
             "Statement": [
                 {
@@ -472,7 +496,7 @@ def test_root_mfa_missing_is_critical():
     )
     with stubber:
         ctx.current_check = next(c for c in all_checks() if c.id == "IAM.ROOT_MFA_DISABLED")
-        findings = list(iam.root_mfa(ctx))
+        findings = ctx.current_check.run(ctx)
 
     assert findings[0].severity is Severity.CRITICAL
     assert findings[0].region == "global"
@@ -483,7 +507,8 @@ def test_elb_drop_invalid_headers_disabled_is_flagged():
     ctx = make_ctx()
     client, stubber = stub(ctx, "elbv2")
     lb_arn = "arn:aws:elasticloadbalancing:us-east-1:123456789012:loadbalancer/app/web-alb/abc"
-    stubber.add_response(
+    list_then_detail(
+        stubber,
         "describe_load_balancers",
         {
             "LoadBalancers": [
@@ -496,7 +521,7 @@ def test_elb_drop_invalid_headers_disabled_is_flagged():
                 }
             ]
         },
-        {},
+        {"LoadBalancerArns": [lb_arn]},
     )
     stubber.add_response(
         "describe_load_balancer_attributes",
@@ -505,7 +530,7 @@ def test_elb_drop_invalid_headers_disabled_is_flagged():
     )
     with stubber:
         ctx.current_check = next(c for c in all_checks() if c.id == "ELB.DROP_INVALID_HEADERS")
-        findings = list(compute.elb_drop_invalid_headers(ctx))
+        findings = ctx.current_check.run(ctx)
 
     assert len(findings) == 1
     assert findings[0].severity is Severity.MEDIUM
@@ -516,7 +541,8 @@ def test_elb_drop_invalid_headers_enabled_is_ok():
     ctx = make_ctx()
     client, stubber = stub(ctx, "elbv2")
     lb_arn = "arn:aws:elasticloadbalancing:us-east-1:123456789012:loadbalancer/app/web-alb/abc"
-    stubber.add_response(
+    list_then_detail(
+        stubber,
         "describe_load_balancers",
         {
             "LoadBalancers": [
@@ -529,7 +555,7 @@ def test_elb_drop_invalid_headers_enabled_is_ok():
                 }
             ]
         },
-        {},
+        {"LoadBalancerArns": [lb_arn]},
     )
     stubber.add_response(
         "describe_load_balancer_attributes",
@@ -538,14 +564,15 @@ def test_elb_drop_invalid_headers_enabled_is_ok():
     )
     with stubber:
         ctx.current_check = next(c for c in all_checks() if c.id == "ELB.DROP_INVALID_HEADERS")
-        assert list(compute.elb_drop_invalid_headers(ctx)) == []
+        assert ctx.current_check.run(ctx) == []
 
 
 def test_elb_deletion_protection_disabled_is_flagged():
     ctx = make_ctx()
     client, stubber = stub(ctx, "elbv2")
     lb_arn = "arn:aws:elasticloadbalancing:us-east-1:123456789012:loadbalancer/app/web-alb/abc"
-    stubber.add_response(
+    list_then_detail(
+        stubber,
         "describe_load_balancers",
         {
             "LoadBalancers": [
@@ -558,7 +585,7 @@ def test_elb_deletion_protection_disabled_is_flagged():
                 }
             ]
         },
-        {},
+        {"LoadBalancerArns": [lb_arn]},
     )
     stubber.add_response(
         "describe_load_balancer_attributes",
@@ -567,7 +594,7 @@ def test_elb_deletion_protection_disabled_is_flagged():
     )
     with stubber:
         ctx.current_check = next(c for c in all_checks() if c.id == "ELB.NO_DELETION_PROTECTION")
-        findings = list(compute.elb_deletion_protection(ctx))
+        findings = ctx.current_check.run(ctx)
 
     assert len(findings) == 1
     assert findings[0].severity is Severity.LOW
@@ -577,7 +604,8 @@ def test_elb_deletion_protection_disabled_is_flagged():
 def test_rds_snapshot_unencrypted_is_high():
     ctx = make_ctx()
     client, stubber = stub(ctx, "rds")
-    stubber.add_response(
+    list_then_detail(
+        stubber,
         "describe_db_snapshots",
         {
             "DBSnapshots": [
@@ -590,12 +618,13 @@ def test_rds_snapshot_unencrypted_is_high():
                 }
             ]
         },
-        {"SnapshotType": "manual"},
+        {"DBSnapshotIdentifier": "manual-snap-1"},
+        list_params={"SnapshotType": "manual"},
     )
     stubber.add_response("describe_db_cluster_snapshots", {"DBClusterSnapshots": []}, {"SnapshotType": "manual"})
     with stubber:
         ctx.current_check = next(c for c in all_checks() if c.id == "RDS.SNAPSHOT_NOT_ENCRYPTED")
-        findings = list(databases.rds_snapshot_encryption(ctx))
+        findings = ctx.current_check.run(ctx)
 
     assert len(findings) == 1
     assert findings[0].severity is Severity.HIGH
@@ -605,7 +634,8 @@ def test_rds_snapshot_unencrypted_is_high():
 def test_rds_iam_auth_disabled_is_flagged():
     ctx = make_ctx()
     client, stubber = stub(ctx, "rds")
-    stubber.add_response(
+    list_then_detail(
+        stubber,
         "describe_db_instances",
         {
             "DBInstances": [
@@ -617,12 +647,12 @@ def test_rds_iam_auth_disabled_is_flagged():
                 }
             ]
         },
-        {},
+        {"DBInstanceIdentifier": "core-db"},
     )
     stubber.add_response("describe_db_clusters", {"DBClusters": []}, {})
     with stubber:
         ctx.current_check = next(c for c in all_checks() if c.id == "RDS.NO_IAM_AUTH")
-        findings = list(databases.rds_iam_auth(ctx))
+        findings = ctx.current_check.run(ctx)
 
     assert len(findings) == 1
     assert findings[0].severity is Severity.LOW
@@ -631,7 +661,8 @@ def test_rds_iam_auth_disabled_is_flagged():
 def test_rds_copy_tags_disabled_is_flagged():
     ctx = make_ctx()
     client, stubber = stub(ctx, "rds")
-    stubber.add_response(
+    list_then_detail(
+        stubber,
         "describe_db_instances",
         {
             "DBInstances": [
@@ -642,12 +673,12 @@ def test_rds_copy_tags_disabled_is_flagged():
                 }
             ]
         },
-        {},
+        {"DBInstanceIdentifier": "core-db"},
     )
     stubber.add_response("describe_db_clusters", {"DBClusters": []}, {})
     with stubber:
         ctx.current_check = next(c for c in all_checks() if c.id == "RDS.NO_COPY_TAGS_TO_SNAPSHOT")
-        findings = list(databases.rds_copy_tags(ctx))
+        findings = ctx.current_check.run(ctx)
 
     assert len(findings) == 1
     assert findings[0].severity is Severity.LOW
@@ -673,7 +704,7 @@ def test_ddb_provisioned_without_capacity_is_flagged():
     )
     with stubber:
         ctx.current_check = next(c for c in all_checks() if c.id == "DYNAMODB.NO_AUTOSCALING")
-        findings = list(databases.ddb_autoscaling(ctx))
+        findings = ctx.current_check.run(ctx)
 
     assert len(findings) == 1
     assert findings[0].severity is Severity.LOW
@@ -698,7 +729,119 @@ def test_ddb_on_demand_is_not_flagged():
     )
     with stubber:
         ctx.current_check = next(c for c in all_checks() if c.id == "DYNAMODB.NO_AUTOSCALING")
-        assert list(databases.ddb_autoscaling(ctx)) == []
+        assert ctx.current_check.run(ctx) == []
+
+
+# ------------------------------------------------------ custo (recursos caros)
+METRIC_WINDOW = {"MetricDataQueries": ANY, "StartTime": ANY, "EndTime": ANY}
+
+
+def _metric_values(value, n=48):
+    # As métricas são buscadas em lote: o Id de cada query recebe o prefixo do recurso (r0_ = 1º recurso).
+    return {"MetricDataResults": [{"Id": "r0_result", "Values": [float(value)] * n}]}
+
+
+def _price(usd):
+    product = {"terms": {"OnDemand": {"t": {"priceDimensions": {"d": {"pricePerUnit": {"USD": str(usd)}}}}}}}
+    return {"PriceList": [json.dumps(product)], "FormatVersion": "aws_v1"}
+
+
+def _io1_volume_findings(peak_iops):
+    ctx = make_ctx()
+    client, stubber = stub(ctx, "ec2")
+    cw, cw_stubber = stub(ctx, "cloudwatch")
+    list_then_detail(
+        stubber,
+        "describe_volumes",
+        {
+            "Volumes": [
+                {
+                    "VolumeId": "vol-io1",
+                    "VolumeType": "io1",
+                    "Iops": 10000,
+                    "Size": 500,
+                    "State": "in-use",
+                    "AvailabilityZone": "us-east-1a",
+                    "Attachments": [{"InstanceId": "i-1", "VolumeId": "vol-io1", "State": "attached"}],
+                }
+            ]
+        },
+        {"VolumeIds": ["vol-io1"]},
+    )
+    cw_stubber.add_response("get_metric_data", _metric_values(peak_iops), METRIC_WINDOW)
+    with stubber, cw_stubber:
+        ctx.current_check = next(c for c in all_checks() if c.id == "COST.EBS_PIOPS_UNDERUSED")
+        return ctx.current_check.run(ctx)
+
+
+def test_io1_volume_with_low_iops_suggests_gp3():
+    findings = _io1_volume_findings(peak_iops=800)
+
+    assert len(findings) == 1
+    # 500 GiB io1 + 10.000 IOPS (US$ 712,50) contra 500 GiB gp3 (US$ 40,00)
+    assert findings[0].monthly_waste_usd == pytest.approx(672.5)
+    assert findings[0].severity is Severity.MEDIUM
+    assert "800" in findings[0].title
+
+
+def test_io1_volume_using_its_iops_is_ok():
+    assert _io1_volume_findings(peak_iops=8000) == []
+
+
+def test_previous_generation_instance_estimates_saving():
+    ctx = make_ctx()
+    client, stubber = stub(ctx, "ec2")
+    pricing_client, pricing_stubber = stub(ctx, "pricing")
+    list_then_detail(
+        stubber,
+        "describe_instances",
+        {
+            "Reservations": [
+                {
+                    "Instances": [
+                        {"InstanceId": "i-old", "InstanceType": "m4.2xlarge", "State": {"Name": "running"}, "Tags": []}
+                    ]
+                }
+            ]
+        },
+        {"InstanceIds": ["i-old"]},
+    )
+    pricing_stubber.add_response("get_products", _price(0.40), {"ServiceCode": "AmazonEC2", "MaxResults": 1, "Filters": ANY})
+    pricing_stubber.add_response("get_products", _price(0.384), {"ServiceCode": "AmazonEC2", "MaxResults": 1, "Filters": ANY})
+    with stubber, pricing_stubber:
+        ctx.current_check = next(c for c in all_checks() if c.id == "COST.EC2_PREVIOUS_GENERATION")
+        findings = ctx.current_check.run(ctx)
+
+    assert len(findings) == 1
+    assert "m6i.2xlarge" in findings[0].title
+    assert findings[0].monthly_waste_usd == pytest.approx(11.68)  # (0,40 - 0,384) * 730 h
+
+
+def test_ddb_overprovisioned_table_is_flagged():
+    ctx = make_ctx()
+    client, stubber = stub(ctx, "dynamodb")
+    cw, cw_stubber = stub(ctx, "cloudwatch")
+    stubber.add_response("list_tables", {"TableNames": ["events"]}, {})
+    stubber.add_response(
+        "describe_table",
+        {
+            "Table": {
+                "TableName": "events",
+                "BillingModeSummary": {"BillingMode": "PROVISIONED"},
+                "ProvisionedThroughput": {"ReadCapacityUnits": 1000, "WriteCapacityUnits": 500},
+            }
+        },
+        {"TableName": "events"},
+    )
+    cw_stubber.add_response("get_metric_data", _metric_values(100), METRIC_WINDOW)  # leitura
+    cw_stubber.add_response("get_metric_data", _metric_values(20), METRIC_WINDOW)  # escrita
+    with stubber, cw_stubber:
+        ctx.current_check = next(c for c in all_checks() if c.id == "COST.DYNAMODB_PROVISIONED")
+        findings = ctx.current_check.run(ctx)
+
+    assert len(findings) == 1
+    assert findings[0].pillar.value == "cost_optimization"
+    assert findings[0].monthly_waste_usd == pytest.approx(307.48)
 
 
 # ------------------------------------------------------------------- sns
@@ -718,7 +861,7 @@ def test_sns_topic_without_kms_is_flagged():
     )
     with stubber:
         ctx.current_check = next(c for c in all_checks() if c.id == "SNS.NOT_ENCRYPTED")
-        findings = list(sns.sns_encryption(ctx))
+        findings = list(ctx.current_check.run(ctx))
 
     assert len(findings) == 1
     assert findings[0].severity is Severity.MEDIUM
@@ -746,7 +889,7 @@ def test_sns_topic_with_kms_is_ok():
     )
     with stubber:
         ctx.current_check = next(c for c in all_checks() if c.id == "SNS.NOT_ENCRYPTED")
-        assert list(sns.sns_encryption(ctx)) == []
+        assert list(ctx.current_check.run(ctx)) == []
 
 
 # ------------------------------------------------------------------- sqs
@@ -766,7 +909,7 @@ def test_sqs_queue_without_kms_is_flagged():
     )
     with stubber:
         ctx.current_check = next(c for c in all_checks() if c.id == "SQS.NOT_ENCRYPTED")
-        findings = list(sqs.sqs_encryption(ctx))
+        findings = list(ctx.current_check.run(ctx))
 
     assert len(findings) == 1
     assert findings[0].severity is Severity.MEDIUM
@@ -794,7 +937,7 @@ def test_sqs_queue_with_kms_is_ok():
     )
     with stubber:
         ctx.current_check = next(c for c in all_checks() if c.id == "SQS.NOT_ENCRYPTED")
-        assert list(sqs.sqs_encryption(ctx)) == []
+        assert list(ctx.current_check.run(ctx)) == []
 
 
 # ------------------------------------------------------------- cloudfront
@@ -875,9 +1018,26 @@ def test_cf_distribution_without_waf_is_flagged():
         {"DistributionList": {"Marker": "", "MaxItems": 100, "IsTruncated": False, "Quantity": 1, "Items": [_cf_dist_item()]}},
         {"MaxItems": "100"},
     )
+    stubber.add_response(
+        "get_distribution",
+        {
+            "Distribution": {
+                "Id": "E1234567890",
+                "ARN": "arn:aws:cloudfront::123456789012:distribution/E1234567890",
+                "Status": "Deployed",
+                "LastModifiedTime": dt.datetime(2026, 1, 1, tzinfo=dt.timezone.utc),
+                "InProgressInvalidationBatches": 0,
+                "DomainName": "d123.cloudfront.net",
+                "ActiveTrustedSigners": {"Enabled": False, "Quantity": 0},
+                "ActiveTrustedKeyGroups": {"Enabled": False, "Quantity": 0},
+                "DistributionConfig": {**_cf_full_config(), "WebACLId": ""},
+            }
+        },
+        {"Id": "E1234567890"},
+    )
     with stubber:
         ctx.current_check = next(c for c in all_checks() if c.id == "CLOUDFRONT.NO_WAF")
-        findings = list(cloudfront.cf_waf(ctx))
+        findings = ctx.current_check.run(ctx)
 
     assert len(findings) == 1
     assert findings[0].severity is Severity.MEDIUM
@@ -901,9 +1061,26 @@ def test_cf_distribution_with_waf_is_ok():
         },
         {"MaxItems": "100"},
     )
+    stubber.add_response(
+        "get_distribution",
+        {
+            "Distribution": {
+                "Id": "E1234567890",
+                "ARN": "arn:aws:cloudfront::123456789012:distribution/E1234567890",
+                "Status": "Deployed",
+                "LastModifiedTime": dt.datetime(2026, 1, 1, tzinfo=dt.timezone.utc),
+                "InProgressInvalidationBatches": 0,
+                "DomainName": "d123.cloudfront.net",
+                "ActiveTrustedSigners": {"Enabled": False, "Quantity": 0},
+                "ActiveTrustedKeyGroups": {"Enabled": False, "Quantity": 0},
+                "DistributionConfig": {**_cf_full_config(), "WebACLId": "arn:aws:wafv2:us-east-1:123456789012:regional/webacl/main/abc"},
+            }
+        },
+        {"Id": "E1234567890"},
+    )
     with stubber:
         ctx.current_check = next(c for c in all_checks() if c.id == "CLOUDFRONT.NO_WAF")
-        assert list(cloudfront.cf_waf(ctx)) == []
+        assert ctx.current_check.run(ctx) == []
 
 
 def test_cf_distribution_without_root_object_is_flagged():
@@ -933,7 +1110,7 @@ def test_cf_distribution_without_root_object_is_flagged():
     )
     with stubber:
         ctx.current_check = next(c for c in all_checks() if c.id == "CLOUDFRONT.NO_ROOT_OBJECT")
-        findings = list(cloudfront.cf_root_object(ctx))
+        findings = ctx.current_check.run(ctx)
 
     assert len(findings) == 1
     assert findings[0].severity is Severity.LOW
@@ -966,7 +1143,7 @@ def test_cf_distribution_without_logging_is_flagged():
     )
     with stubber:
         ctx.current_check = next(c for c in all_checks() if c.id == "CLOUDFRONT.NO_LOGGING")
-        findings = list(cloudfront.cf_logging(ctx))
+        findings = ctx.current_check.run(ctx)
 
     assert len(findings) == 1
     assert findings[0].severity is Severity.LOW

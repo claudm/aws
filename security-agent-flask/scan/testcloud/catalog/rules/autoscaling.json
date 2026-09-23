@@ -1,0 +1,24 @@
+{
+  "AUTOSCALING.SINGLE_AZ": {
+    "title": "Auto Scaling Group '{var}' está restrito a uma única AZ",
+    "severity": "high",
+    "description": "O ASG '{var}' distribui instâncias em apenas {var} Zona(s) de Disponibilidade. Para alta disponibilidade real (HA), ele deve operar em 2 ou mais zonas, mitigando interrupções no nível do Data Center.",
+    "remediation": "Altere o ASG para incluir subnets de pelo menos duas Availability Zones distintas.",
+    "pillar": "reliability",
+    "exposure": [
+      "compute"
+    ],
+    "permissions": [
+      "autoscaling:DescribeAutoScalingGroups"
+    ],
+    "evaluate": {
+      "resource": "autoscaling.group",
+      "service": "autoscaling",
+      "operation": "describe_auto_scaling_groups",
+      "skip_if_none": true,
+      "extract": "AutoScalingGroups.0.AvailabilityZones",
+      "operator": "len_lt",
+      "value": 2
+    }
+  }
+}

@@ -1,0 +1,24 @@
+{
+  "ORGANIZATIONS.ALL_FEATURES_DISABLED": {
+    "title": "AWS Organizations configurada apenas para faturamento consolidado",
+    "severity": "medium",
+    "description": "A organização '{var}' está configurada com FeatureSet='{var}'. Sem ter 'ALL' ativado, a empresa perde todo o poder de governança e não pode criar Service Control Policies (SCPs) para forçar barreiras de segurança nas contas filhas.",
+    "remediation": "No console da conta de faturamento (Master), ative todos os recursos da AWS Organizations e habilite políticas SCP.",
+    "pillar": "security",
+    "scope": "global",
+    "exposure": [],
+    "permissions": [
+      "organizations:DescribeOrganization"
+    ],
+    "evaluate": {
+      "resource": "organizations.organization",
+      "service": "organizations",
+      "operation": "describe_organization",
+      "skip_if_none": true,
+      "extract": "Organization.FeatureSet",
+      "operator": "not_equals",
+      "value": "ALL",
+      "region": "us-east-1"
+    }
+  }
+}

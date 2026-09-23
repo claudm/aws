@@ -3,7 +3,7 @@ name = "testcloud-clone"
 version = "1.0.0"
 description = "Scanner read-only de postura AWS: segurança, confiabilidade e custo, com boto3"
 requires-python = ">=3.9"
-dependencies = ["boto3>=1.34"]
+dependencies = ["boto3>=1.34", "jsonpath-ng>=1.6"]
 
 [project.scripts]
 testcloud = "testcloud.cli:main"
@@ -11,3 +11,11 @@ testcloud = "testcloud.cli:main"
 [build-system]
 requires = ["setuptools>=68"]
 build-backend = "setuptools.build_meta"
+
+# Só o pacote do scanner; ui/, scans/ e deploy/ ficam fora do wheel.
+[tool.setuptools.packages.find]
+include = ["testcloud*"]
+
+# As regras dos checks dinâmicos são JSON e precisam ir junto com o código.
+[tool.setuptools.package-data]
+testcloud = ["catalog/rules/*.json"]

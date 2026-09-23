@@ -1,0 +1,26 @@
+{
+  "GLOBALACCELERATOR.FLOW_LOGS_DISABLED": {
+    "title": "Global Accelerator '{var}' sem Flow Logs",
+    "severity": "medium",
+    "description": "Os Flow Logs não estão habilitados. O time de infra/segurança fica totalmente cego sobre o volume e a origem dos pacotes de rede (Anycast) injetados pela borda, dificultando forense de intrusões e detecção de ataques DDoS.",
+    "remediation": "Acesse os atributos do Global Accelerator no console e ative Flow Logs apontando para um bucket S3.",
+    "pillar": "security",
+    "scope": "global",
+    "exposure": [
+      "internet_facing"
+    ],
+    "permissions": [
+      "globalaccelerator:ListAccelerators",
+      "globalaccelerator:DescribeAcceleratorAttributes"
+    ],
+    "evaluate": {
+      "resource": "globalaccelerator.accelerator",
+      "service": "globalaccelerator",
+      "operation": "describe_accelerator_attributes",
+      "skip_if_none": true,
+      "extract": "AcceleratorAttributes.FlowLogsEnabled",
+      "operator": "falsy",
+      "region": "us-west-2"
+    }
+  }
+}

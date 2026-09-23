@@ -1,0 +1,45 @@
+{
+  "REDSHIFT.NOT_ENCRYPTED": {
+    "title": "Cluster Redshift '{var}' sem criptografia em repouso",
+    "severity": "high",
+    "description": "O cluster '{var}' não está criptografado usando AWS KMS.",
+    "remediation": "Habilite a criptografia modificando o cluster para usar KMS.",
+    "pillar": "security",
+    "exposure": [
+      "data_store"
+    ],
+    "permissions": [
+      "redshift:DescribeClusters"
+    ],
+    "evaluate": {
+      "resource": "redshift.cluster",
+      "service": "redshift",
+      "operation": "describe_clusters",
+      "skip_if_none": true,
+      "extract": "Clusters.0.Encrypted",
+      "operator": "falsy"
+    }
+  },
+  "REDSHIFT.PUBLICLY_ACCESSIBLE": {
+    "title": "Cluster Redshift '{var}' está publicamente acessível",
+    "severity": "critical",
+    "description": "O cluster '{var}' foi configurado com PubliclyAccessible=True, podendo receber tráfego da internet se os security groups permitirem.",
+    "remediation": "Modifique o cluster e desative a opção PubliclyAccessible.",
+    "pillar": "security",
+    "exposure": [
+      "internet_facing",
+      "data_store"
+    ],
+    "permissions": [
+      "redshift:DescribeClusters"
+    ],
+    "evaluate": {
+      "resource": "redshift.cluster",
+      "service": "redshift",
+      "operation": "describe_clusters",
+      "skip_if_none": true,
+      "extract": "Clusters.0.PubliclyAccessible",
+      "operator": "truthy"
+    }
+  }
+}

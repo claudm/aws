@@ -1,0 +1,30 @@
+{
+  "WAF.NO_LOGGING": {
+    "title": "WAFv2 WebACL '{var}' está sem Logging",
+    "severity": "medium",
+    "description": "O WebACL '{var}' não possui configuração de logging habilitada, impedindo auditoria de tráfego bloqueado ou permitido.",
+    "remediation": "Associe o WebACL a um CloudWatch Log Group ou Kinesis Data Firehose.",
+    "pillar": "security",
+    "scope": "regional",
+    "exposure": [
+      "internet_facing"
+    ],
+    "permissions": [
+      "wafv2:ListWebACLs",
+      "wafv2:GetLoggingConfiguration"
+    ],
+    "evaluate": {
+      "resource": "wafv2.web_acl",
+      "service": "wafv2",
+      "operation": "get_logging_configuration",
+      "skip_if_none": false,
+      "operator": "missing_keys",
+      "keys": [
+        "LoggingConfiguration"
+      ],
+      "ignore_errors": [
+        "WAFNonexistentItemException"
+      ]
+    }
+  }
+}

@@ -1,0 +1,26 @@
+{
+  "ELASTICBEANSTALK.MANAGED_UPDATES_DISABLED": {
+    "title": "Ambiente Elastic Beanstalk '{var}' sem atualizações gerenciadas ativas",
+    "severity": "high",
+    "description": "O ambiente '{var}' não possui Managed Updates ativado. Ambientes abandonados ou legados acumularão vulnerabilidades críticas (CVEs) no sistema operacional e runtime base (Node, Tomcat, Docker) por não receberem patch automático.",
+    "remediation": "Nas configurações do ambiente Elastic Beanstalk, ative a opção 'Managed updates' e defina uma janela semanal de manutenção para que a AWS aplique patches automaticamente.",
+    "pillar": "security",
+    "exposure": [
+      "compute"
+    ],
+    "permissions": [
+      "elasticbeanstalk:DescribeEnvironments",
+      "elasticbeanstalk:DescribeConfigurationSettings"
+    ],
+    "evaluate": {
+      "resource": "elasticbeanstalk.environment",
+      "service": "elasticbeanstalk",
+      "operation": "describe_configuration_settings",
+      "skip_if_none": true,
+      "operator": "jsonpath",
+      "expression": "$.ConfigurationSettings[0].OptionSettings[?(@.Namespace=='aws:elasticbeanstalk:managedactions' & @.OptionName=='ManagedActionsEnabled' & @.Value=='true')]",
+      "expected": "empty",
+      "_comment": "Busca a opção ManagedActionsEnabled=true"
+    }
+  }
+}

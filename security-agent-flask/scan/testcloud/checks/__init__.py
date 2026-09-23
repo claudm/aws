@@ -1,31 +1,25 @@
 """Importar este pacote popula o registry de checks.
 
-Para adicionar um check novo: crie a função em um dos módulos (ou em um módulo
-novo importado aqui) e decore com @check(...). Nada mais precisa ser alterado.
+Utiliza auto-load para importar dinamicamente todos os módulos de checks (.py) 
+deste diretório e registrá-los automaticamente, sem precisar editar este arquivo.
 """
 
-from . import (  # noqa: F401
-    cloudfront,
-    compute,
-    cost,
-    databases,
-    detective,
-    ec2,
-    iam,
-    s3,
-    sns,
-    sqs,
-)
+import importlib
+import pkgutil
 
-__all__ = [
-    "cloudfront",
-    "compute",
-    "cost",
-    "databases",
-    "detective",
-    "ec2",
-    "iam",
-    "s3",
-    "sns",
-    "sqs",
-]
+__all__ = []
+
+# Varre dinamicamente todos os arquivos .py na pasta atual (checks/)
+for _, module_name, _ in pkgutil.iter_modules(__path__):
+    if module_name == "lambda":
+        continue  # Ignora arquivo problemático antigo (palavra reservada do Python) se ainda existir
+        
+    # Importa o módulo dinamicamente
+    importlib.import_module(f".{module_name}", package=__name__)
+    
+    # Registra no __all__ para export
+    __all__.append(module_name)
+
+# Após carregar todos os check modules manuais, chama o autoload para as regras full-dinâmicas
+from ..registry import autoload_dynamic_checks
+autoload_dynamic_checks()

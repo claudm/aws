@@ -1,0 +1,26 @@
+{
+  "ROUTE53.QUERY_LOGGING_DISABLED": {
+    "title": "Route53 Hosted Zone '{var}' sem query logging",
+    "severity": "low",
+    "description": "A zona DNS '{var}' não possui configuração para logar as queries DNS. Logs DNS são vitais para identificar beacons de malware e exfiltração.",
+    "remediation": "Crie uma configuração de Query Logging enviando os logs para o CloudWatch.",
+    "pillar": "security",
+    "scope": "global",
+    "exposure": [
+      "internet_facing"
+    ],
+    "permissions": [
+      "route53:ListHostedZones",
+      "route53:ListQueryLoggingConfigs"
+    ],
+    "evaluate": {
+      "resource": "route53.hosted_zone",
+      "service": "route53",
+      "operation": "list_query_logging_configs",
+      "skip_if_none": true,
+      "extract": "QueryLoggingConfigs",
+      "operator": "len_lt",
+      "value": 1
+    }
+  }
+}

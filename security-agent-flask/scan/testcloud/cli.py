@@ -13,7 +13,7 @@ from .context import SessionFactory
 from .engine import Scanner
 from .models import Severity
 from .registry import all_checks, select
-from .report import render_console, write_csv, write_html, write_json
+from .report import render_console, write_csv, write_html, write_json, write_split_json
 
 SEVERITY_ORDER = [Severity.INFO, Severity.LOW, Severity.MEDIUM, Severity.HIGH, Severity.CRITICAL]
 
@@ -37,6 +37,7 @@ def build_parser() -> argparse.ArgumentParser:
     scan.add_argument("--min-severity", choices=[s.value for s in Severity], default="info")
     scan.add_argument("--workers", type=int, default=8, help="regiões em paralelo (padrão: 8)")
     scan.add_argument("--json", dest="json_path", help="salva o resultado em JSON")
+    scan.add_argument("--split-json", dest="split_json_dir", help="salva o resultado quebrado em múltiplos JSONs por serviço neste diretório")
     scan.add_argument("--html", dest="html_path", help="gera relatório HTML")
     scan.add_argument("--csv", dest="csv_path", help="exporta findings em CSV")
     scan.add_argument("--all", action="store_true", help="imprime todos os achados no console")
@@ -122,6 +123,9 @@ def cmd_scan(args) -> int:
     if args.json_path:
         write_json(result, args.json_path)
         print(f"JSON salvo em {args.json_path}", file=sys.stderr)
+    if args.split_json_dir:
+        write_split_json(result, args.split_json_dir)
+        print(f"JSONs separados por serviço salvos na pasta: {args.split_json_dir}/", file=sys.stderr)
     if args.html_path:
         write_html(result, args.html_path)
         print(f"Relatório HTML salvo em {args.html_path}", file=sys.stderr)

@@ -1,0 +1,23 @@
+{
+  "CLOUDFORMATION.TERMINATION_PROTECTION_DISABLED": {
+    "title": "Stack CloudFormation '{var}' sem proteção contra deleção",
+    "severity": "medium",
+    "description": "A stack '{var}' pode ser deletada acidentalmente no console ou por scripts automatizados. Isso pode destruir a infraestrutura produtiva em cascata.",
+    "remediation": "Ative 'Enable termination protection' na stack. Essa trava exige uma confirmação explícita adicional antes de qualquer deleção.",
+    "pillar": "reliability",
+    "exposure": [
+      "compute"
+    ],
+    "permissions": [
+      "cloudformation:DescribeStacks"
+    ],
+    "evaluate": {
+      "resource": "cloudformation.stack",
+      "service": "cloudformation",
+      "operation": "describe_stacks",
+      "skip_if_none": true,
+      "extract": "Stacks.0.EnableTerminationProtection",
+      "operator": "falsy"
+    }
+  }
+}

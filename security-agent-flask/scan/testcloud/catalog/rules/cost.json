@@ -1,0 +1,1535 @@
+{
+  "COST.STOPPED_INSTANCES": {
+    "title": "Instância {var} parada, mantendo {var} GiB de EBS",
+    "severity": "low",
+    "description": "Instâncias paradas não custam compute, mas os volumes e IPs continuam faturando. Frequentemente são restos de testes.",
+    "remediation": "Crie uma AMI e termine a instância, ou documente a razão de mantê-la parada.",
+    "pillar": "cost",
+    "well_architected": "COST04-BP03",
+    "permissions": [
+      "ec2:DescribeInstances",
+      "ec2:DescribeVolumes"
+    ],
+    "evaluate": {
+      "resource": "ec2.instance",
+      "service": "ec2",
+      "skip_if_none": true,
+      "operation": "describe_instances",
+      "extract": "Reservations.0.Instances.0.State.Name",
+      "operator": "equals",
+      "value": "stopped",
+      "exposure": [
+        "empty_resource"
+      ],
+      "env_tags": {
+        "operation": "describe_instances",
+        "extract": "Reservations.0.Instances.0.Tags",
+        "replace": true
+      },
+      "vars": [
+        {
+          "operation": "describe_volumes",
+          "extract": "Volumes",
+          "params": {
+            "Filters": [
+              {
+                "Name": "attachment.instance-id",
+                "Values": "{InstanceIds}"
+              }
+            ]
+          },
+          "transform": "sum",
+          "field": "Size"
+        }
+      ],
+      "waste": {
+        "fn": "ebs_monthly_total",
+        "args": [
+          {
+            "operation": "describe_volumes",
+            "extract": "Volumes",
+            "params": {
+              "Filters": [
+                {
+                  "Name": "attachment.instance-id",
+                  "Values": "{InstanceIds}"
+                }
+              ]
+            }
+          }
+        ]
+      }
+    }
+  },
+  "COST.EC2_UNDERUTILIZED": {
+    "title": "Instância {var} ({var}) com CPU média de {var}%",
+    "severity": "low",
+    "description": "Nos últimos 14 dias a instância {var} ({var}) ficou com CPU média de {var}% e pico de {var}%. Candidata a downsizing ou a família Graviton.",
+    "remediation": "Confirme se o gargalo não é memória ou I/O (o CloudWatch padrão não vê RAM). Depois reduza um tamanho na família ou migre para t4g/m7g.",
+    "pillar": "cost",
+    "well_architected": "COST06-BP02",
+    "permissions": [
+      "ec2:DescribeInstances",
+      "cloudwatch:GetMetricData"
+    ],
+    "evaluate": {
+      "resource": "ec2.instance",
+      "service": "ec2",
+      "skip_if_none": true,
+      "operator": "and",
+      "conditions": [
+        {
+          "operation": "describe_instances",
+          "extract": "Reservations.0.Instances.0.State.Name",
+          "operator": "equals",
+          "value": "running"
+        },
+        {
+          "operation": "get_metric_data",
+          "service": "cloudwatch",
+          "batch": true,
+          "params": {
+            "MetricDataQueries": [
+              {
+                "Id": "result",
+                "ReturnData": true,
+                "MetricStat": {
+                  "Metric": {
+                    "Namespace": "AWS/EC2",
+                    "MetricName": "CPUUtilization",
+                    "Dimensions": [
+                      {
+                        "Name": "InstanceId",
+                        "Value": "{InstanceIds.0}"
+                      }
+                    ]
+                  },
+                  "Period": 86400,
+                  "Stat": "Average"
+                }
+              }
+            ],
+            "StartTime": "{now-14d}",
+            "EndTime": "{now}"
+          },
+          "operator": "aggregate",
+          "extract": "MetricDataResults.0.Values",
+          "fn": "avg",
+          "compare": "lt",
+          "value": 5.0,
+          "min_count": 5,
+          "id": "avg"
+        },
+        {
+          "operation": "get_metric_data",
+          "service": "cloudwatch",
+          "batch": true,
+          "params": {
+            "MetricDataQueries": [
+              {
+                "Id": "result",
+                "ReturnData": true,
+                "MetricStat": {
+                  "Metric": {
+                    "Namespace": "AWS/EC2",
+                    "MetricName": "CPUUtilization",
+                    "Dimensions": [
+                      {
+                        "Name": "InstanceId",
+                        "Value": "{InstanceIds.0}"
+                      }
+                    ]
+                  },
+                  "Period": 86400,
+                  "Stat": "Maximum"
+                }
+              }
+            ],
+            "StartTime": "{now-14d}",
+            "EndTime": "{now}"
+          },
+          "operator": "aggregate",
+          "extract": "MetricDataResults.0.Values",
+          "fn": "max",
+          "compare": "lt",
+          "value": 40,
+          "min_count": 5,
+          "id": "peak"
+        }
+      ],
+      "exposure": [],
+      "env_tags": {
+        "operation": "describe_instances",
+        "extract": "Reservations.0.Instances.0.Tags"
+      },
+      "vars": [
+        {
+          "operation": "describe_instances",
+          "extract": "Reservations.0.Instances.0.InstanceType"
+        },
+        {
+          "capture": "avg",
+          "transform": "round"
+        },
+        {
+          "capture": "peak",
+          "transform": "round"
+        }
+      ],
+      "waste": {
+        "fn": "ec2_monthly",
+        "ctx": true,
+        "factor": 0.4,
+        "args": [
+          {
+            "operation": "describe_instances",
+            "extract": "Reservations.0.Instances.0.InstanceType",
+            "default": ""
+          }
+        ]
+      },
+      "evidence": {
+        "avg_cpu": {
+          "capture": "avg",
+          "transform": "round",
+          "digits": 2
+        },
+        "max_cpu": {
+          "capture": "peak",
+          "transform": "round",
+          "digits": 2
+        }
+      },
+      "overrides": [
+        {
+          "when": {
+            "capture": "waste",
+            "extract": "value",
+            "operator": "equals",
+            "value": null
+          },
+          "description": "Nos últimos 14 dias a instância {var} ({var}) ficou com CPU média de {var}% e pico de {var}%. Candidata a downsizing ou a família Graviton. Economia não estimada: o preço não foi encontrado na Price List (verifique a permissão pricing:GetProducts e se o tipo existe na região)."
+        }
+      ]
+    }
+  },
+  "COST.STALE_SNAPSHOTS": {
+    "title": "{var} snapshot(s) com mais de {var} dias ({var} GiB de origem)",
+    "severity": "low",
+    "description": "Snapshots manuais não expiram sozinhos. Em contas antigas eles costumam ser a maior linha silenciosa da fatura de EBS. Snapshots de volumes já apagados ficam de fora desta contagem e aparecem em COST.ORPHAN_SNAPSHOTS.",
+    "remediation": "Adote Data Lifecycle Manager com política de retenção, e revise snapshots manuais sem tag de owner antes de apagar.",
+    "pillar": "cost",
+    "well_architected": "COST04-BP02",
+    "permissions": [
+      "ec2:DescribeSnapshots",
+      "ec2:DescribeVolumes",
+      "ec2:DescribeImages"
+    ],
+    "evaluate": {
+      "resource": "ec2.snapshot_fleet",
+      "service": "ec2",
+      "skip_if_none": true,
+      "operation": "describe_snapshots",
+      "extract": "Snapshots",
+      "operator": "any_item",
+      "id": "stale",
+      "sum": "VolumeSize",
+      "collect": "SnapshotId",
+      "where": {
+        "operator": "and",
+        "conditions": [
+          {
+            "extract": "StartTime",
+            "operator": "age_days_gt",
+            "value": 180
+          },
+          {
+            "operator": "or",
+            "conditions": [
+              {
+                "operation": "describe_volumes",
+                "params": {
+                  "VolumeIds": [
+                    "{item.VolumeId}"
+                  ]
+                },
+                "ignore_errors": [
+                  "InvalidVolume.NotFound"
+                ],
+                "skip_if_none": false,
+                "extract": "Volumes",
+                "operator": "len_gt",
+                "value": 0
+              },
+              {
+                "operation": "describe_images",
+                "params": {
+                  "Owners": [
+                    "self"
+                  ],
+                  "Filters": [
+                    {
+                      "Name": "block-device-mapping.snapshot-id",
+                      "Values": [
+                        "{item.SnapshotId}"
+                      ]
+                    }
+                  ]
+                },
+                "extract": "Images",
+                "operator": "len_gt",
+                "value": 0
+              }
+            ]
+          }
+        ]
+      },
+      "params": {
+        "OwnerIds": [
+          "self"
+        ]
+      },
+      "exposure": [],
+      "vars": [
+        {
+          "capture": "stale",
+          "field": "count"
+        },
+        {
+          "value": 180
+        },
+        {
+          "capture": "stale",
+          "field": "sum"
+        }
+      ],
+      "waste": {
+        "fn": "snapshot_monthly",
+        "args": [
+          {
+            "capture": "stale",
+            "field": "sum"
+          }
+        ]
+      },
+      "evidence": {
+        "snapshot_ids": {
+          "capture": "stale",
+          "field": "values"
+        }
+      }
+    }
+  },
+  "COST.IDLE_LOAD_BALANCER": {
+    "title": "Load balancer '{var}' sem nenhum target saudável",
+    "severity": "medium",
+    "description": "O load balancer '{var}' tem {var} target group(s) e zero targets saudáveis. Ou o serviço foi desativado e o LB ficou, ou existe uma indisponibilidade em curso.",
+    "remediation": "Confirme se a aplicação foi descomissionada; em caso positivo, remova o LB e o Route 53 record.",
+    "pillar": "cost",
+    "well_architected": "COST04-BP03",
+    "permissions": [
+      "elasticloadbalancing:DescribeTargetGroups",
+      "elasticloadbalancing:DescribeTargetHealth"
+    ],
+    "evaluate": {
+      "resource": "elbv2.load_balancer",
+      "service": "elbv2",
+      "skip_if_none": true,
+      "operation": "describe_target_groups",
+      "extract": "TargetGroups",
+      "operator": "none_item",
+      "where": {
+        "operation": "describe_target_health",
+        "extract": "TargetHealthDescriptions",
+        "operator": "any_item",
+        "params": {
+          "TargetGroupArn": "{item.TargetGroupArn}"
+        },
+        "where": {
+          "extract": "TargetHealth.State",
+          "operator": "equals",
+          "value": "healthy"
+        }
+      },
+      "exposure": [
+        "empty_resource"
+      ],
+      "vars": [
+        {
+          "operation": "describe_target_groups",
+          "extract": "TargetGroups",
+          "transform": "count"
+        }
+      ],
+      "waste": {
+        "fn": "lb_monthly",
+        "args": [
+          {
+            "operation": "describe_load_balancers",
+            "extract": "LoadBalancers.0.Type",
+            "params": {
+              "LoadBalancerArns": [
+                "{LoadBalancerArn}"
+              ]
+            }
+          }
+        ]
+      }
+    }
+  },
+  "COST.IDLE_NAT_GATEWAY": {
+    "title": "NAT Gateway {var} praticamente sem tráfego",
+    "severity": "medium",
+    "description": "O NAT {var} teve saída total de {var} MB em 14 dias. O NAT cobra por hora mesmo ocioso, e é um dos itens mais caros de uma VPC esquecida.",
+    "remediation": "Se a subnet privada não precisa de internet, remova o NAT. Se o tráfego é só para serviços AWS, troque por VPC endpoints (S3/ECR/Logs) — normalmente sai mais barato.",
+    "pillar": "cost",
+    "well_architected": "COST04-BP03",
+    "permissions": [
+      "ec2:DescribeNatGateways",
+      "cloudwatch:GetMetricData"
+    ],
+    "evaluate": {
+      "resource": "ec2.nat_gateway",
+      "service": "ec2",
+      "skip_if_none": true,
+      "operator": "and",
+      "conditions": [
+        {
+          "operation": "describe_nat_gateways",
+          "extract": "NatGateways.0.State",
+          "operator": "equals",
+          "value": "available"
+        },
+        {
+          "operation": "get_metric_data",
+          "service": "cloudwatch",
+          "batch": true,
+          "params": {
+            "MetricDataQueries": [
+              {
+                "Id": "result",
+                "ReturnData": true,
+                "MetricStat": {
+                  "Metric": {
+                    "Namespace": "AWS/NATGateway",
+                    "MetricName": "BytesOutToDestination",
+                    "Dimensions": [
+                      {
+                        "Name": "NatGatewayId",
+                        "Value": "{NatGatewayIds.0}"
+                      }
+                    ]
+                  },
+                  "Period": 86400,
+                  "Stat": "Sum"
+                }
+              }
+            ],
+            "StartTime": "{now-14d}",
+            "EndTime": "{now}"
+          },
+          "operator": "aggregate",
+          "extract": "MetricDataResults.0.Values",
+          "fn": "sum",
+          "compare": "lte",
+          "value": 52428800,
+          "min_count": 5,
+          "id": "bytes"
+        }
+      ],
+      "exposure": [
+        "empty_resource"
+      ],
+      "vars": [
+        {
+          "capture": "bytes",
+          "transform": "mb"
+        }
+      ],
+      "waste": {
+        "fn": "hourly_monthly",
+        "args": [
+          {
+            "const": "NAT_GATEWAY_HOUR"
+          }
+        ]
+      }
+    }
+  },
+  "COST.NO_BUDGET": {
+    "title": "Nenhum AWS Budget configurado na conta",
+    "severity": "low",
+    "description": "Sem budget com alerta, um recurso provisionado por engano só aparece na fatura do mês seguinte.",
+    "remediation": "Crie um budget mensal com alertas em 80% e 100% do previsto, e um budget de anomalia por serviço.",
+    "pillar": "cost",
+    "scope": "global",
+    "well_architected": "COST02-BP05",
+    "permissions": [
+      "budgets:DescribeBudgets"
+    ],
+    "evaluate": {
+      "resource": "budgets.account",
+      "service": "budgets",
+      "skip_if_none": true,
+      "operation": "describe_budgets",
+      "extract": "Budgets",
+      "operator": "len_lt",
+      "value": 1,
+      "params": {
+        "AccountId": "{account_id}"
+      },
+      "region": "us-east-1",
+      "exposure": []
+    }
+  },
+  "COST.EBS_PIOPS_UNDERUSED": {
+    "title": "Volume {var} ({var}) com {var} IOPS provisionados e pico de {var} IOPS",
+    "severity": "low",
+    "description": "Nos últimos 14 dias o pico (média horária) ficou abaixo dos 3.000 IOPS que o gp3 entrega sem custo extra. IOPS provisionado em io1/io2 é cobrado por IOPS/mês, usado ou não.",
+    "remediation": "Migre para gp3 com modify-volume (online, sem downtime). Se precisar de mais de 3.000 IOPS, provisione no gp3 só o necessário — continua mais barato que io1/io2.",
+    "pillar": "cost",
+    "well_architected": "COST06-BP03",
+    "exposure": [],
+    "permissions": [
+      "ec2:DescribeVolumes",
+      "cloudwatch:GetMetricData"
+    ],
+    "evaluate": {
+      "resource": "ec2.volume",
+      "service": "ec2",
+      "skip_if_none": true,
+      "operator": "and",
+      "conditions": [
+        {
+          "operation": "describe_volumes",
+          "extract": "Volumes.0.VolumeType",
+          "operator": "in",
+          "value": [
+            "io1",
+            "io2"
+          ]
+        },
+        {
+          "operation": "describe_volumes",
+          "extract": "Volumes.0.State",
+          "operator": "equals",
+          "value": "in-use"
+        },
+        {
+          "operation": "get_metric_data",
+          "service": "cloudwatch",
+          "batch": true,
+          "params": {
+            "MetricDataQueries": [
+              {
+                "Id": "r",
+                "ReturnData": false,
+                "MetricStat": {
+                  "Metric": {
+                    "Namespace": "AWS/EBS",
+                    "MetricName": "VolumeReadOps",
+                    "Dimensions": [
+                      {
+                        "Name": "VolumeId",
+                        "Value": "{VolumeIds.0}"
+                      }
+                    ]
+                  },
+                  "Period": 3600,
+                  "Stat": "Sum"
+                }
+              },
+              {
+                "Id": "w",
+                "ReturnData": false,
+                "MetricStat": {
+                  "Metric": {
+                    "Namespace": "AWS/EBS",
+                    "MetricName": "VolumeWriteOps",
+                    "Dimensions": [
+                      {
+                        "Name": "VolumeId",
+                        "Value": "{VolumeIds.0}"
+                      }
+                    ]
+                  },
+                  "Period": 3600,
+                  "Stat": "Sum"
+                }
+              },
+              {
+                "Id": "result",
+                "Expression": "(r+w)/PERIOD(r)",
+                "ReturnData": true
+              }
+            ],
+            "StartTime": "{now-14d}",
+            "EndTime": "{now}"
+          },
+          "operator": "aggregate",
+          "extract": "MetricDataResults.0.Values",
+          "fn": "max",
+          "compare": "lt",
+          "value": 3000,
+          "min_count": 24,
+          "id": "peak"
+        }
+      ],
+      "vars": [
+        {
+          "operation": "describe_volumes",
+          "extract": "Volumes.0.VolumeType"
+        },
+        {
+          "operation": "describe_volumes",
+          "extract": "Volumes.0.Iops"
+        },
+        {
+          "capture": "peak",
+          "transform": "round",
+          "digits": 0
+        }
+      ],
+      "waste": {
+        "fn": "piops_to_gp3_saving",
+        "args": [
+          {
+            "operation": "describe_volumes",
+            "extract": "Volumes.0.VolumeType"
+          },
+          {
+            "operation": "describe_volumes",
+            "extract": "Volumes.0.Size",
+            "default": 0
+          },
+          {
+            "operation": "describe_volumes",
+            "extract": "Volumes.0.Iops",
+            "default": 0
+          }
+        ]
+      },
+      "overrides": [
+        {
+          "when": {
+            "capture": "waste",
+            "extract": "value",
+            "operator": "gte",
+            "value": 100
+          },
+          "severity": "medium"
+        }
+      ]
+    }
+  },
+  "COST.GP3_OVERPROVISIONED": {
+    "title": "Volume gp3 {var} com {var} IOPS / {var} MB/s provisionados acima do uso",
+    "severity": "low",
+    "description": "O volume paga IOPS e/ou throughput acima do baseline do gp3 (3.000 IOPS / 125 MB/s), mas o pico dos últimos 14 dias ficou dentro do baseline.",
+    "remediation": "Reduza Iops/Throughput com modify-volume até o baseline (ou até o pico observado com folga). A alteração é online.",
+    "pillar": "cost",
+    "well_architected": "COST06-BP03",
+    "exposure": [],
+    "permissions": [
+      "ec2:DescribeVolumes",
+      "cloudwatch:GetMetricData"
+    ],
+    "evaluate": {
+      "resource": "ec2.volume",
+      "service": "ec2",
+      "skip_if_none": true,
+      "operator": "and",
+      "conditions": [
+        {
+          "operation": "describe_volumes",
+          "extract": "Volumes.0.VolumeType",
+          "operator": "equals",
+          "value": "gp3"
+        },
+        {
+          "operation": "describe_volumes",
+          "extract": "Volumes.0.State",
+          "operator": "equals",
+          "value": "in-use"
+        },
+        {
+          "operator": "or",
+          "conditions": [
+            {
+              "operator": "and",
+              "conditions": [
+                {
+                  "operation": "describe_volumes",
+                  "extract": "Volumes.0.Iops",
+                  "operator": "gt",
+                  "value": 3000
+                },
+                {
+                  "operation": "get_metric_data",
+                  "service": "cloudwatch",
+                  "batch": true,
+                  "params": {
+                    "MetricDataQueries": [
+                      {
+                        "Id": "r",
+                        "ReturnData": false,
+                        "MetricStat": {
+                          "Metric": {
+                            "Namespace": "AWS/EBS",
+                            "MetricName": "VolumeReadOps",
+                            "Dimensions": [
+                              {
+                                "Name": "VolumeId",
+                                "Value": "{VolumeIds.0}"
+                              }
+                            ]
+                          },
+                          "Period": 3600,
+                          "Stat": "Sum"
+                        }
+                      },
+                      {
+                        "Id": "w",
+                        "ReturnData": false,
+                        "MetricStat": {
+                          "Metric": {
+                            "Namespace": "AWS/EBS",
+                            "MetricName": "VolumeWriteOps",
+                            "Dimensions": [
+                              {
+                                "Name": "VolumeId",
+                                "Value": "{VolumeIds.0}"
+                              }
+                            ]
+                          },
+                          "Period": 3600,
+                          "Stat": "Sum"
+                        }
+                      },
+                      {
+                        "Id": "result",
+                        "Expression": "(r+w)/PERIOD(r)",
+                        "ReturnData": true
+                      }
+                    ],
+                    "StartTime": "{now-14d}",
+                    "EndTime": "{now}"
+                  },
+                  "operator": "aggregate",
+                  "extract": "MetricDataResults.0.Values",
+                  "fn": "max",
+                  "compare": "lt",
+                  "value": 3000,
+                  "min_count": 24
+                }
+              ]
+            },
+            {
+              "operator": "and",
+              "conditions": [
+                {
+                  "operation": "describe_volumes",
+                  "extract": "Volumes.0.Throughput",
+                  "operator": "gt",
+                  "value": 125
+                },
+                {
+                  "operation": "get_metric_data",
+                  "service": "cloudwatch",
+                  "batch": true,
+                  "params": {
+                    "MetricDataQueries": [
+                      {
+                        "Id": "r",
+                        "ReturnData": false,
+                        "MetricStat": {
+                          "Metric": {
+                            "Namespace": "AWS/EBS",
+                            "MetricName": "VolumeReadBytes",
+                            "Dimensions": [
+                              {
+                                "Name": "VolumeId",
+                                "Value": "{VolumeIds.0}"
+                              }
+                            ]
+                          },
+                          "Period": 3600,
+                          "Stat": "Sum"
+                        }
+                      },
+                      {
+                        "Id": "w",
+                        "ReturnData": false,
+                        "MetricStat": {
+                          "Metric": {
+                            "Namespace": "AWS/EBS",
+                            "MetricName": "VolumeWriteBytes",
+                            "Dimensions": [
+                              {
+                                "Name": "VolumeId",
+                                "Value": "{VolumeIds.0}"
+                              }
+                            ]
+                          },
+                          "Period": 3600,
+                          "Stat": "Sum"
+                        }
+                      },
+                      {
+                        "Id": "result",
+                        "Expression": "(r+w)/PERIOD(r)/1048576",
+                        "ReturnData": true
+                      }
+                    ],
+                    "StartTime": "{now-14d}",
+                    "EndTime": "{now}"
+                  },
+                  "operator": "aggregate",
+                  "extract": "MetricDataResults.0.Values",
+                  "fn": "max",
+                  "compare": "lt",
+                  "value": 125,
+                  "min_count": 24
+                }
+              ]
+            }
+          ]
+        }
+      ],
+      "vars": [
+        {
+          "operation": "describe_volumes",
+          "extract": "Volumes.0.Iops"
+        },
+        {
+          "operation": "describe_volumes",
+          "extract": "Volumes.0.Throughput"
+        }
+      ],
+      "waste": {
+        "fn": "gp3_extra_monthly",
+        "args": [
+          {
+            "operation": "describe_volumes",
+            "extract": "Volumes.0.Iops",
+            "default": 0
+          },
+          {
+            "operation": "describe_volumes",
+            "extract": "Volumes.0.Throughput",
+            "default": 0
+          }
+        ]
+      }
+    }
+  },
+  "COST.EBS_IDLE_ATTACHED": {
+    "title": "Volume {var} anexado a {var} sem I/O relevante em 14 dias",
+    "severity": "low",
+    "description": "O volume está anexado, mas não passou de 100 operações por dia nos últimos 14 dias. Discos de dados esquecidos continuam sendo cobrados integralmente.",
+    "remediation": "Confirme com o dono se os dados ainda são necessários; tire um snapshot, desanexe e delete o volume.",
+    "pillar": "cost",
+    "well_architected": "COST04-BP03",
+    "exposure": [
+      "empty_resource"
+    ],
+    "permissions": [
+      "ec2:DescribeVolumes",
+      "cloudwatch:GetMetricData"
+    ],
+    "evaluate": {
+      "resource": "ec2.volume",
+      "service": "ec2",
+      "skip_if_none": true,
+      "operator": "and",
+      "conditions": [
+        {
+          "operation": "describe_volumes",
+          "extract": "Volumes.0.State",
+          "operator": "equals",
+          "value": "in-use"
+        },
+        {
+          "operation": "get_metric_data",
+          "service": "cloudwatch",
+          "batch": true,
+          "params": {
+            "MetricDataQueries": [
+              {
+                "Id": "r",
+                "ReturnData": false,
+                "MetricStat": {
+                  "Metric": {
+                    "Namespace": "AWS/EBS",
+                    "MetricName": "VolumeReadOps",
+                    "Dimensions": [
+                      {
+                        "Name": "VolumeId",
+                        "Value": "{VolumeIds.0}"
+                      }
+                    ]
+                  },
+                  "Period": 86400,
+                  "Stat": "Sum"
+                }
+              },
+              {
+                "Id": "w",
+                "ReturnData": false,
+                "MetricStat": {
+                  "Metric": {
+                    "Namespace": "AWS/EBS",
+                    "MetricName": "VolumeWriteOps",
+                    "Dimensions": [
+                      {
+                        "Name": "VolumeId",
+                        "Value": "{VolumeIds.0}"
+                      }
+                    ]
+                  },
+                  "Period": 86400,
+                  "Stat": "Sum"
+                }
+              },
+              {
+                "Id": "result",
+                "Expression": "r+w",
+                "ReturnData": true
+              }
+            ],
+            "StartTime": "{now-14d}",
+            "EndTime": "{now}"
+          },
+          "operator": "aggregate",
+          "extract": "MetricDataResults.0.Values",
+          "fn": "max",
+          "compare": "lt",
+          "value": 100,
+          "min_count": 7
+        }
+      ],
+      "vars": [
+        {
+          "operation": "describe_volumes",
+          "extract": "Volumes.0.Attachments.0.InstanceId"
+        }
+      ],
+      "waste": {
+        "fn": "ebs_monthly",
+        "args": [
+          {
+            "operation": "describe_volumes",
+            "extract": "Volumes.0.VolumeType",
+            "default": "gp2"
+          },
+          {
+            "operation": "describe_volumes",
+            "extract": "Volumes.0.Size",
+            "default": 0
+          },
+          {
+            "operation": "describe_volumes",
+            "extract": "Volumes.0.Iops",
+            "default": 0
+          },
+          {
+            "operation": "describe_volumes",
+            "extract": "Volumes.0.Throughput",
+            "default": 0
+          }
+        ]
+      },
+      "overrides": [
+        {
+          "when": {
+            "capture": "waste",
+            "extract": "value",
+            "operator": "gte",
+            "value": 50
+          },
+          "severity": "medium"
+        }
+      ]
+    }
+  },
+  "COST.ORPHAN_SNAPSHOTS": {
+    "title": "Snapshot {var} de um volume que não existe mais ({var} GiB)",
+    "severity": "low",
+    "description": "O volume de origem foi apagado e o snapshot não é usado por nenhuma AMI da conta. Snapshots órfãos costumam ser backups esquecidos de recursos já descomissionados.",
+    "remediation": "Confirme a política de retenção; se não houver obrigação de guarda, delete o snapshot (ou mova para o tier Archive, 75% mais barato).",
+    "pillar": "cost",
+    "well_architected": "COST04-BP03",
+    "exposure": [
+      "empty_resource"
+    ],
+    "permissions": [
+      "ec2:DescribeSnapshots",
+      "ec2:DescribeVolumes",
+      "ec2:DescribeImages"
+    ],
+    "evaluate": {
+      "resource": "ec2.snapshot",
+      "service": "ec2",
+      "skip_if_none": true,
+      "operator": "and",
+      "conditions": [
+        {
+          "operation": "describe_snapshots",
+          "params": {
+            "SnapshotIds": [
+              "{SnapshotId}"
+            ]
+          },
+          "extract": "Snapshots",
+          "operator": "any_item",
+          "where": {
+            "operation": "describe_volumes",
+            "extract": "Volumes",
+            "operator": "len_lt",
+            "value": 1,
+            "params": {
+              "VolumeIds": [
+                "{item.VolumeId}"
+              ]
+            },
+            "ignore_errors": [
+              "InvalidVolume.NotFound"
+            ],
+            "skip_if_none": false
+          }
+        },
+        {
+          "operation": "describe_images",
+          "extract": "Images",
+          "operator": "len_lt",
+          "value": 1,
+          "params": {
+            "Owners": [
+              "self"
+            ],
+            "Filters": [
+              {
+                "Name": "block-device-mapping.snapshot-id",
+                "Values": [
+                  "{SnapshotId}"
+                ]
+              }
+            ]
+          }
+        }
+      ],
+      "vars": [
+        {
+          "operation": "describe_snapshots",
+          "params": {
+            "SnapshotIds": [
+              "{SnapshotId}"
+            ]
+          },
+          "extract": "Snapshots.0.VolumeSize"
+        }
+      ],
+      "waste": {
+        "fn": "snapshot_monthly",
+        "args": [
+          {
+            "operation": "describe_snapshots",
+            "params": {
+              "SnapshotIds": [
+                "{SnapshotId}"
+              ]
+            },
+            "extract": "Snapshots.0.VolumeSize",
+            "default": 0
+          }
+        ]
+      }
+    }
+  },
+  "COST.RDS_PIOPS_UNDERUSED": {
+    "title": "RDS '{var}' com {var} IOPS provisionados ({var}) e pico de {var} IOPS",
+    "severity": "low",
+    "description": "O pico de ReadIOPS + WriteIOPS (média horária) dos últimos 14 dias ficou abaixo do baseline do gp3. IOPS provisionado em io1/io2 é cobrado por IOPS/mês.",
+    "remediation": "Migre o storage para gp3 (modify-db-instance --storage-type gp3). A conversão é online, com possível queda de performance durante a otimização do storage.",
+    "pillar": "cost",
+    "well_architected": "COST06-BP03",
+    "exposure": [
+      "data_store"
+    ],
+    "permissions": [
+      "rds:DescribeDBInstances",
+      "cloudwatch:GetMetricData"
+    ],
+    "evaluate": {
+      "resource": "rds.instance",
+      "service": "rds",
+      "skip_if_none": true,
+      "operator": "and",
+      "conditions": [
+        {
+          "operation": "describe_db_instances",
+          "extract": "DBInstances.0.StorageType",
+          "operator": "in",
+          "value": [
+            "io1",
+            "io2"
+          ]
+        },
+        {
+          "operation": "get_metric_data",
+          "service": "cloudwatch",
+          "batch": true,
+          "params": {
+            "MetricDataQueries": [
+              {
+                "Id": "r",
+                "ReturnData": false,
+                "MetricStat": {
+                  "Metric": {
+                    "Namespace": "AWS/RDS",
+                    "MetricName": "ReadIOPS",
+                    "Dimensions": [
+                      {
+                        "Name": "DBInstanceIdentifier",
+                        "Value": "{DBInstanceIdentifier}"
+                      }
+                    ]
+                  },
+                  "Period": 3600,
+                  "Stat": "Average"
+                }
+              },
+              {
+                "Id": "w",
+                "ReturnData": false,
+                "MetricStat": {
+                  "Metric": {
+                    "Namespace": "AWS/RDS",
+                    "MetricName": "WriteIOPS",
+                    "Dimensions": [
+                      {
+                        "Name": "DBInstanceIdentifier",
+                        "Value": "{DBInstanceIdentifier}"
+                      }
+                    ]
+                  },
+                  "Period": 3600,
+                  "Stat": "Average"
+                }
+              },
+              {
+                "Id": "result",
+                "Expression": "r+w",
+                "ReturnData": true
+              }
+            ],
+            "StartTime": "{now-14d}",
+            "EndTime": "{now}"
+          },
+          "operator": "aggregate",
+          "extract": "MetricDataResults.0.Values",
+          "fn": "max",
+          "compare": "lt",
+          "value": 3000,
+          "min_count": 24,
+          "id": "peak"
+        }
+      ],
+      "vars": [
+        {
+          "operation": "describe_db_instances",
+          "extract": "DBInstances.0.Iops"
+        },
+        {
+          "operation": "describe_db_instances",
+          "extract": "DBInstances.0.StorageType"
+        },
+        {
+          "capture": "peak",
+          "transform": "round",
+          "digits": 0
+        }
+      ],
+      "waste": {
+        "fn": "rds_piops_saving",
+        "args": [
+          {
+            "operation": "describe_db_instances",
+            "extract": "DBInstances.0.AllocatedStorage",
+            "default": 0
+          },
+          {
+            "operation": "describe_db_instances",
+            "extract": "DBInstances.0.Iops",
+            "default": 0
+          }
+        ]
+      },
+      "overrides": [
+        {
+          "when": {
+            "capture": "waste",
+            "extract": "value",
+            "operator": "gte",
+            "value": 100
+          },
+          "severity": "medium"
+        }
+      ]
+    }
+  },
+  "COST.RDS_PREVIOUS_GENERATION": {
+    "title": "RDS '{var}' em classe de geração anterior ({var}); equivalente atual: {var}",
+    "severity": "low",
+    "description": "Classes de geração anterior custam mais por vCPU/GiB e têm desempenho inferior às atuais.",
+    "remediation": "Planeje a troca de classe na janela de manutenção (modify-db-instance --db-instance-class). Para MySQL/PostgreSQL/MariaDB, avalie também Graviton (db.m7g/db.r7g/db.t4g).",
+    "pillar": "cost",
+    "well_architected": "COST05-BP04",
+    "exposure": [],
+    "permissions": [
+      "rds:DescribeDBInstances",
+      "pricing:GetProducts"
+    ],
+    "evaluate": {
+      "resource": "rds.instance",
+      "service": "rds",
+      "skip_if_none": true,
+      "operation": "describe_db_instances",
+      "extract": "DBInstances.0.DBInstanceClass",
+      "operator": "regex",
+      "value": "^db\\.(m1|m2|m3|m4|r3|r4|t1|t2)\\.",
+      "vars": [
+        {
+          "operation": "describe_db_instances",
+          "extract": "DBInstances.0.DBInstanceClass"
+        },
+        {
+          "operation": "describe_db_instances",
+          "extract": "DBInstances.0.DBInstanceClass",
+          "transform": "family_map",
+          "map": {
+            "m1": {
+              "family": "m6i",
+              "min_size": "large",
+              "size_map": {
+                "10xlarge": "12xlarge"
+              }
+            },
+            "m2": {
+              "family": "r6i",
+              "min_size": "large"
+            },
+            "m3": {
+              "family": "m6i",
+              "min_size": "large",
+              "size_map": {
+                "10xlarge": "12xlarge"
+              }
+            },
+            "m4": {
+              "family": "m6i",
+              "min_size": "large",
+              "size_map": {
+                "10xlarge": "12xlarge"
+              }
+            },
+            "r3": {
+              "family": "r6i",
+              "min_size": "large"
+            },
+            "r4": {
+              "family": "r6i",
+              "min_size": "large"
+            },
+            "t1": "t3",
+            "t2": "t3"
+          }
+        }
+      ],
+      "env_tags": {
+        "operation": "describe_db_instances",
+        "extract": "DBInstances.0.TagList"
+      },
+      "waste": {
+        "fn": "rds_upgrade_saving",
+        "ctx": true,
+        "args": [
+          {
+            "operation": "describe_db_instances",
+            "extract": "DBInstances.0.DBInstanceClass"
+          },
+          {
+            "operation": "describe_db_instances",
+            "extract": "DBInstances.0.DBInstanceClass",
+            "transform": "family_map",
+            "map": {
+              "m1": {
+                "family": "m6i",
+                "min_size": "large",
+                "size_map": {
+                  "10xlarge": "12xlarge"
+                }
+              },
+              "m2": {
+                "family": "r6i",
+                "min_size": "large"
+              },
+              "m3": {
+                "family": "m6i",
+                "min_size": "large",
+                "size_map": {
+                  "10xlarge": "12xlarge"
+                }
+              },
+              "m4": {
+                "family": "m6i",
+                "min_size": "large",
+                "size_map": {
+                  "10xlarge": "12xlarge"
+                }
+              },
+              "r3": {
+                "family": "r6i",
+                "min_size": "large"
+              },
+              "r4": {
+                "family": "r6i",
+                "min_size": "large"
+              },
+              "t1": "t3",
+              "t2": "t3"
+            }
+          },
+          {
+            "operation": "describe_db_instances",
+            "extract": "DBInstances.0.Engine"
+          },
+          {
+            "operation": "describe_db_instances",
+            "extract": "DBInstances.0.MultiAZ",
+            "default": false
+          },
+          {
+            "operation": "describe_db_instances",
+            "extract": "DBInstances.0.LicenseModel"
+          }
+        ]
+      },
+      "overrides": [
+        {
+          "when": {
+            "capture": "waste",
+            "extract": "value",
+            "operator": "equals",
+            "value": null
+          },
+          "description": "Classes de geração anterior custam mais por vCPU/GiB e têm desempenho inferior às atuais. Economia não estimada: o preço não foi encontrado na Price List (verifique a permissão pricing:GetProducts e se o tipo existe na região)."
+        }
+      ]
+    }
+  },
+  "COST.EC2_PREVIOUS_GENERATION": {
+    "title": "Instância {var} em tipo de geração anterior ({var}); equivalente atual: {var}",
+    "severity": "low",
+    "description": "Famílias de geração anterior custam mais por vCPU/GiB e entregam menos desempenho que as atuais (Nitro).",
+    "remediation": "Troque o tipo na próxima janela (stop, modify-instance-attribute, start). Valide drivers ENA/NVMe em AMIs antigas; para cargas compatíveis, avalie Graviton (m7g/c7g/r7g/t4g).",
+    "pillar": "cost",
+    "well_architected": "COST05-BP04",
+    "exposure": [],
+    "permissions": [
+      "ec2:DescribeInstances",
+      "pricing:GetProducts"
+    ],
+    "evaluate": {
+      "resource": "ec2.instance",
+      "service": "ec2",
+      "skip_if_none": true,
+      "operator": "and",
+      "conditions": [
+        {
+          "operation": "describe_instances",
+          "extract": "Reservations.0.Instances.0.State.Name",
+          "operator": "equals",
+          "value": "running"
+        },
+        {
+          "operation": "describe_instances",
+          "extract": "Reservations.0.Instances.0.InstanceType",
+          "operator": "regex",
+          "value": "^(t1|t2|m1|m2|m3|m4|c1|c3|c4|r3|r4|i2|d2|g2|p2)\\."
+        }
+      ],
+      "vars": [
+        {
+          "operation": "describe_instances",
+          "extract": "Reservations.0.Instances.0.InstanceType"
+        },
+        {
+          "operation": "describe_instances",
+          "extract": "Reservations.0.Instances.0.InstanceType",
+          "transform": "family_map",
+          "map": {
+            "t1": "t3",
+            "t2": "t3",
+            "m1": {
+              "family": "m6i",
+              "min_size": "large",
+              "size_map": {
+                "10xlarge": "12xlarge"
+              }
+            },
+            "m2": {
+              "family": "r6i",
+              "min_size": "large"
+            },
+            "m3": {
+              "family": "m6i",
+              "min_size": "large",
+              "size_map": {
+                "10xlarge": "12xlarge"
+              }
+            },
+            "m4": {
+              "family": "m6i",
+              "min_size": "large",
+              "size_map": {
+                "10xlarge": "12xlarge"
+              }
+            },
+            "c1": {
+              "family": "c6i",
+              "min_size": "large"
+            },
+            "c3": {
+              "family": "c6i",
+              "min_size": "large"
+            },
+            "c4": {
+              "family": "c6i",
+              "min_size": "large"
+            },
+            "r3": {
+              "family": "r6i",
+              "min_size": "large"
+            },
+            "r4": {
+              "family": "r6i",
+              "min_size": "large"
+            },
+            "i2": {
+              "family": "i4i",
+              "min_size": "large"
+            },
+            "d2": {
+              "family": "d3",
+              "min_size": "xlarge"
+            },
+            "g2": {
+              "family": "g4dn",
+              "min_size": "xlarge"
+            },
+            "p2": {
+              "family": "p3",
+              "min_size": "2xlarge"
+            }
+          }
+        }
+      ],
+      "env_tags": {
+        "operation": "describe_instances",
+        "extract": "Reservations.0.Instances.0.Tags"
+      },
+      "waste": {
+        "fn": "ec2_upgrade_saving",
+        "ctx": true,
+        "args": [
+          {
+            "operation": "describe_instances",
+            "extract": "Reservations.0.Instances.0.InstanceType"
+          },
+          {
+            "operation": "describe_instances",
+            "extract": "Reservations.0.Instances.0.InstanceType",
+            "transform": "family_map",
+            "map": {
+              "t1": "t3",
+              "t2": "t3",
+              "m1": {
+                "family": "m6i",
+                "min_size": "large",
+                "size_map": {
+                  "10xlarge": "12xlarge"
+                }
+              },
+              "m2": {
+                "family": "r6i",
+                "min_size": "large"
+              },
+              "m3": {
+                "family": "m6i",
+                "min_size": "large",
+                "size_map": {
+                  "10xlarge": "12xlarge"
+                }
+              },
+              "m4": {
+                "family": "m6i",
+                "min_size": "large",
+                "size_map": {
+                  "10xlarge": "12xlarge"
+                }
+              },
+              "c1": {
+                "family": "c6i",
+                "min_size": "large"
+              },
+              "c3": {
+                "family": "c6i",
+                "min_size": "large"
+              },
+              "c4": {
+                "family": "c6i",
+                "min_size": "large"
+              },
+              "r3": {
+                "family": "r6i",
+                "min_size": "large"
+              },
+              "r4": {
+                "family": "r6i",
+                "min_size": "large"
+              },
+              "i2": {
+                "family": "i4i",
+                "min_size": "large"
+              },
+              "d2": {
+                "family": "d3",
+                "min_size": "xlarge"
+              },
+              "g2": {
+                "family": "g4dn",
+                "min_size": "xlarge"
+              },
+              "p2": {
+                "family": "p3",
+                "min_size": "2xlarge"
+              }
+            }
+          }
+        ]
+      },
+      "overrides": [
+        {
+          "when": {
+            "capture": "waste",
+            "extract": "value",
+            "operator": "equals",
+            "value": null
+          },
+          "description": "Famílias de geração anterior custam mais por vCPU/GiB e entregam menos desempenho que as atuais (Nitro). Economia não estimada: o preço não foi encontrado na Price List (verifique a permissão pricing:GetProducts e se o tipo existe na região)."
+        }
+      ]
+    }
+  }
+}

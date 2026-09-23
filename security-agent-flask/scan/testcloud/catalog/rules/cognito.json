@@ -1,0 +1,28 @@
+{
+  "COGNITO.MFA_DISABLED": {
+    "title": "Cognito User Pool '{var}' sem MFA",
+    "severity": "high",
+    "description": "O User Pool '{var}' está com a configuração de MFA desligada, permitindo login apenas com usuário e senha e facilitando ataques de credential stuffing.",
+    "remediation": "Altere a configuração de MFA do User Pool para 'OPTIONAL' ou 'ON'.",
+    "pillar": "security",
+    "exposure": [
+      "internet_facing"
+    ],
+    "permissions": [
+      "cognito-idp:ListUserPools",
+      "cognito-idp:DescribeUserPool"
+    ],
+    "evaluate": {
+      "resource": "cognito-idp.user_pool",
+      "service": "cognito-idp",
+      "operation": "describe_user_pool",
+      "skip_if_none": true,
+      "extract": "UserPool.MfaConfiguration",
+      "operator": "in",
+      "value": [
+        null,
+        "OFF"
+      ]
+    }
+  }
+}

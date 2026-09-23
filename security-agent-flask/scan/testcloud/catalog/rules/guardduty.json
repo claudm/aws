@@ -1,0 +1,71 @@
+{
+  "GUARDDUTY.NOT_ENABLED": {
+    "title": "GuardDuty não habilitado em {var}",
+    "severity": "",
+    "description": "",
+    "remediation": "Habilite via Organizations (delegated admin) para cobrir todas as contas e regiões automaticamente.",
+    "pillar": "security",
+    "well_architected": "SEC04-BP02",
+    "permissions": [
+      "guardduty:ListDetectors"
+    ],
+    "evaluate": {
+      "resource": "guardduty.region",
+      "service": "guardduty",
+      "skip_if_none": true,
+      "operation": "list_detectors",
+      "extract": "DetectorIds",
+      "operator": "len_lt",
+      "value": 1,
+      "vars": [
+        {
+          "value": "{region}"
+        }
+      ],
+      "severity": "low",
+      "exposure": [],
+      "description": "Sem GuardDuty não há detecção gerenciada de credenciais usadas fora do padrão, mineração de cripto, comunicação com C2 ou reconhecimento de API. A região não aparenta ter workloads — ainda assim, regiões ociosas são alvo comum de abuso.",
+      "overrides": [
+        {
+          "when": {
+            "operator": "or",
+            "conditions": [
+              {
+                "operation": "describe_instances",
+                "extract": "Reservations",
+                "operator": "len_gt",
+                "value": 0,
+                "service": "ec2",
+                "params": {
+                  "MaxResults": 5
+                }
+              },
+              {
+                "operation": "list_functions",
+                "extract": "Functions",
+                "operator": "len_gt",
+                "value": 0,
+                "service": "lambda",
+                "params": {
+                  "MaxItems": 1
+                }
+              },
+              {
+                "operation": "describe_db_instances",
+                "extract": "DBInstances",
+                "operator": "len_gt",
+                "value": 0,
+                "service": "rds",
+                "params": {
+                  "MaxRecords": 20
+                }
+              }
+            ]
+          },
+          "severity": "medium",
+          "description": "Sem GuardDuty não há detecção gerenciada de credenciais usadas fora do padrão, mineração de cripto, comunicação com C2 ou reconhecimento de API."
+        }
+      ]
+    }
+  }
+}

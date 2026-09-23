@@ -1,0 +1,71 @@
+{
+  "CONFIG.RECORDER_DISABLED": {
+    "title": "AWS Config não está gravando em {var}",
+    "severity": "medium",
+    "description": "Sem histórico de configuração não há linha do tempo de mudanças nem avaliação contínua de conformidade — a investigação pós-incidente vira arqueologia.",
+    "remediation": "Habilite o recorder com delivery channel em S3 e conformance packs relevantes.",
+    "pillar": "security",
+    "well_architected": "SEC04-BP01",
+    "permissions": [
+      "config:DescribeConfigurationRecorderStatus"
+    ],
+    "evaluate": {
+      "resource": "config.region",
+      "service": "config",
+      "skip_if_none": true,
+      "operator": "and",
+      "conditions": [
+        {
+          "operation": "describe_configuration_recorder_status",
+          "extract": "ConfigurationRecordersStatus",
+          "operator": "none_item",
+          "where": {
+            "extract": "recording",
+            "operator": "truthy"
+          }
+        },
+        {
+          "operator": "or",
+          "conditions": [
+            {
+              "operation": "describe_instances",
+              "extract": "Reservations",
+              "operator": "len_gt",
+              "value": 0,
+              "service": "ec2",
+              "params": {
+                "MaxResults": 5
+              }
+            },
+            {
+              "operation": "list_functions",
+              "extract": "Functions",
+              "operator": "len_gt",
+              "value": 0,
+              "service": "lambda",
+              "params": {
+                "MaxItems": 1
+              }
+            },
+            {
+              "operation": "describe_db_instances",
+              "extract": "DBInstances",
+              "operator": "len_gt",
+              "value": 0,
+              "service": "rds",
+              "params": {
+                "MaxRecords": 20
+              }
+            }
+          ]
+        }
+      ],
+      "vars": [
+        {
+          "value": "{region}"
+        }
+      ],
+      "exposure": []
+    }
+  }
+}

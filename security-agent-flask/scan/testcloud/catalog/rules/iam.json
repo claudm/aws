@@ -1,0 +1,599 @@
+{
+  "IAM.ROOT_MFA_DISABLED": {
+    "title": "Conta root sem MFA habilitado",
+    "severity": "critical",
+    "description": "O usuário root tem acesso irrestrito à conta e não pode ter suas permissões limitadas por policy. Sem MFA, o comprometimento da senha do root entrega a conta inteira.",
+    "remediation": "Console > Security credentials (logado como root) > Assign MFA device. Use uma chave de hardware (FIDO2) ou app TOTP guardado em cofre corporativo.",
+    "pillar": "security",
+    "scope": "global",
+    "well_architected": "SEC02-BP01",
+    "permissions": [
+      "iam:GetAccountSummary"
+    ],
+    "evaluate": {
+      "resource": "iam.root",
+      "service": "iam",
+      "skip_if_none": true,
+      "operation": "get_account_summary",
+      "extract": "SummaryMap.AccountMFAEnabled",
+      "operator": "not_equals",
+      "value": 1,
+      "region": "us-east-1",
+      "exposure": [
+        "privileged_identity",
+        "internet_facing"
+      ]
+    }
+  },
+  "IAM.ROOT_ACCESS_KEYS": {
+    "title": "Conta root possui access keys ativas",
+    "severity": "critical",
+    "description": "Access keys do root permitem acesso programático total e não são rastreáveis por identidade. Não há caso de uso legítimo em contas modernas.",
+    "remediation": "Delete as chaves em Security credentials do root e migre automações para IAM Roles.",
+    "pillar": "security",
+    "scope": "global",
+    "well_architected": "SEC02-BP04",
+    "permissions": [
+      "iam:GetAccountSummary"
+    ],
+    "evaluate": {
+      "resource": "iam.root",
+      "service": "iam",
+      "skip_if_none": true,
+      "operation": "get_account_summary",
+      "extract": "SummaryMap.AccountAccessKeysPresent",
+      "operator": "equals",
+      "value": 1,
+      "region": "us-east-1",
+      "exposure": [
+        "privileged_identity"
+      ]
+    }
+  },
+  "IAM.USER_MFA_DISABLED": {
+    "title": "Usuário IAM '{var}' tem senha de console sem MFA",
+    "severity": "high",
+    "description": "Login de console protegido apenas por senha é vulnerável a phishing e credential stuffing.",
+    "remediation": "Exija MFA via SCP/policy com condição aws:MultiFactorAuthPresent, ou elimine usuários de console migrando para IAM Identity Center (SSO).",
+    "pillar": "security",
+    "well_architected": "SEC02-BP01",
+    "permissions": [
+      "iam:ListUsers",
+      "iam:GetLoginProfile",
+      "iam:ListMFADevices"
+    ],
+    "evaluate": {
+      "resource": "iam.user",
+      "service": "iam",
+      "skip_if_none": true,
+      "operator": "and",
+      "conditions": [
+        {
+          "operation": "get_login_profile",
+          "extract": "LoginProfile",
+          "operator": "truthy",
+          "ignore_errors": [
+            "NoSuchEntity"
+          ]
+        },
+        {
+          "operation": "list_mfa_devices",
+          "extract": "MFADevices",
+          "operator": "len_lt",
+          "value": 1
+        }
+      ],
+      "exposure": [
+        "internet_facing"
+      ],
+      "region": "us-east-1"
+    }
+  },
+  "IAM.ACCESS_KEY_ROTATION": {
+    "title": "Access key {var} de '{var}' com {var} dias sem rotação",
+    "severity": "",
+    "description": "A chave {var} de '{var}' foi criada/rotacionada há {var} dias. Chaves de longa duração aumentam a janela de exploração em caso de vazamento em repositório, log ou imagem.",
+    "remediation": "Crie a segunda chave, atualize os consumidores, desative a antiga por alguns dias e só então remova. Prefira roles (IRSA, instance profile, OIDC do GitHub Actions).",
+    "pillar": "security",
+    "well_architected": "SEC02-BP05",
+    "permissions": [
+      "iam:ListUsers",
+      "iam:ListAccessKeys"
+    ],
+    "evaluate": {
+      "resource": "iam.access_key",
+      "service": "iam",
+      "skip_if_none": true,
+      "operation": "list_access_keys",
+      "extract": "AccessKeyMetadata",
+      "operator": "any_item",
+      "params": {
+        "UserName": "{UserName}"
+      },
+      "where": {
+        "operator": "and",
+        "conditions": [
+          {
+            "extract": "AccessKeyId",
+            "operator": "equals",
+            "value": "{AccessKeyId}"
+          },
+          {
+            "extract": "Status",
+            "operator": "equals",
+            "value": "Active"
+          },
+          {
+            "extract": "CreateDate",
+            "operator": "age_days_gt",
+            "value": 90
+          }
+        ]
+      },
+      "id": "key",
+      "collect": "CreateDate",
+      "severity": "medium",
+      "exposure": [],
+      "vars": [
+        {
+          "capture": "key",
+          "field": "values",
+          "transform": "days_since"
+        }
+      ],
+      "region": "us-east-1"
+    }
+  },
+  "IAM.ACCESS_KEY_UNUSED": {
+    "title": "Access key {var} de '{var}' sem uso há {var} dias",
+    "severity": "low",
+    "description": "A chave {var} de '{var}' teve o último uso registrado há {var} dias.",
+    "remediation": "Desative a chave; se ninguém reclamar em 2 semanas, remova.",
+    "pillar": "security",
+    "well_architected": "SEC03-BP04",
+    "permissions": [
+      "iam:ListUsers",
+      "iam:ListAccessKeys",
+      "iam:GetAccessKeyLastUsed"
+    ],
+    "evaluate": {
+      "resource": "iam.access_key",
+      "service": "iam",
+      "skip_if_none": true,
+      "operator": "and",
+      "conditions": [
+        {
+          "operation": "list_access_keys",
+          "extract": "AccessKeyMetadata",
+          "operator": "any_item",
+          "params": {
+            "UserName": "{UserName}"
+          },
+          "where": {
+            "operator": "and",
+            "conditions": [
+              {
+                "extract": "AccessKeyId",
+                "operator": "equals",
+                "value": "{AccessKeyId}"
+              },
+              {
+                "extract": "Status",
+                "operator": "equals",
+                "value": "Active"
+              }
+            ]
+          },
+          "id": "key",
+          "collect": "CreateDate"
+        },
+        {
+          "operator": "or",
+          "conditions": [
+            {
+              "operator": "and",
+              "conditions": [
+                {
+                  "operation": "get_access_key_last_used",
+                  "extract": "AccessKeyLastUsed.LastUsedDate",
+                  "operator": "falsy",
+                  "params": {
+                    "AccessKeyId": "{AccessKeyId}"
+                  }
+                },
+                {
+                  "operation": "list_access_keys",
+                  "extract": "AccessKeyMetadata",
+                  "operator": "any_item",
+                  "params": {
+                    "UserName": "{UserName}"
+                  },
+                  "where": {
+                    "operator": "and",
+                    "conditions": [
+                      {
+                        "extract": "AccessKeyId",
+                        "operator": "equals",
+                        "value": "{AccessKeyId}"
+                      },
+                      {
+                        "extract": "CreateDate",
+                        "operator": "age_days_gt",
+                        "value": 30
+                      }
+                    ]
+                  }
+                }
+              ]
+            },
+            {
+              "operator": "and",
+              "conditions": [
+                {
+                  "operation": "get_access_key_last_used",
+                  "extract": "AccessKeyLastUsed.LastUsedDate",
+                  "operator": "truthy",
+                  "params": {
+                    "AccessKeyId": "{AccessKeyId}"
+                  }
+                },
+                {
+                  "operation": "get_access_key_last_used",
+                  "extract": "AccessKeyLastUsed.LastUsedDate",
+                  "operator": "age_days_gt",
+                  "params": {
+                    "AccessKeyId": "{AccessKeyId}"
+                  },
+                  "value": 90
+                }
+              ]
+            }
+          ]
+        }
+      ],
+      "severity": "low",
+      "exposure": [],
+      "vars": [
+        {
+          "operation": "get_access_key_last_used",
+          "params": {
+            "AccessKeyId": "{AccessKeyId}"
+          },
+          "extract": "AccessKeyLastUsed.LastUsedDate",
+          "transform": "days_since"
+        }
+      ],
+      "overrides": [
+        {
+          "when": {
+            "operation": "get_access_key_last_used",
+            "extract": "AccessKeyLastUsed.LastUsedDate",
+            "operator": "falsy",
+            "params": {
+              "AccessKeyId": "{AccessKeyId}"
+            }
+          },
+          "severity": "medium",
+          "title": "Access key {var} de '{var}' nunca foi usada",
+          "description": "A chave {var} de '{var}' está ativa há {var} dias sem nenhum uso registrado.",
+          "remediation": "Desative e remova. Credencial não usada é só superfície de ataque.",
+          "vars": [
+            {
+              "capture": "key",
+              "field": "values",
+              "transform": "days_since"
+            }
+          ]
+        }
+      ],
+      "region": "us-east-1"
+    }
+  },
+  "IAM.PASSWORD_POLICY": {
+    "title": "Política de senha abaixo do recomendado",
+    "severity": "low",
+    "description": "Desvios encontrados: {var}.",
+    "remediation": "Ajuste em IAM > Account settings para 14+ caracteres, complexidade completa e reuso ≥ 5.",
+    "pillar": "security",
+    "scope": "global",
+    "well_architected": "SEC02-BP02",
+    "permissions": [
+      "iam:GetAccountPasswordPolicy"
+    ],
+    "evaluate": {
+      "resource": "iam.password_policy",
+      "service": "iam",
+      "region": "us-east-1",
+      "ignore_errors": [
+        "NoSuchEntity"
+      ],
+      "join": "; ",
+      "exposure": [],
+      "operator": "or",
+      "conditions": [
+        {
+          "operation": "get_account_password_policy",
+          "extract": "PasswordPolicy.MinimumPasswordLength",
+          "operator": "lt",
+          "value": 14,
+          "label": "comprimento mínimo abaixo de 14"
+        },
+        {
+          "operation": "get_account_password_policy",
+          "extract": "PasswordPolicy.RequireSymbols",
+          "operator": "falsy",
+          "label": "não exige símbolos"
+        },
+        {
+          "operation": "get_account_password_policy",
+          "extract": "PasswordPolicy.RequireNumbers",
+          "operator": "falsy",
+          "label": "não exige números"
+        },
+        {
+          "operation": "get_account_password_policy",
+          "extract": "PasswordPolicy.RequireUppercaseCharacters",
+          "operator": "falsy",
+          "label": "não exige maiúsculas"
+        },
+        {
+          "operation": "get_account_password_policy",
+          "extract": "PasswordPolicy.RequireLowercaseCharacters",
+          "operator": "falsy",
+          "label": "não exige minúsculas"
+        },
+        {
+          "operation": "get_account_password_policy",
+          "extract": "PasswordPolicy.PasswordReusePrevention",
+          "operator": "lt",
+          "value": 5,
+          "label": "permite reuso de senha recente"
+        }
+      ],
+      "overrides": [
+        {
+          "when": {
+            "operation": "get_account_password_policy",
+            "extract": "PasswordPolicy",
+            "operator": "falsy"
+          },
+          "severity": "medium",
+          "title": "Conta sem política de senha customizada",
+          "description": "A política padrão aceita senhas de 8 caracteres sem exigir complexidade nem expiração.",
+          "remediation": "Defina mínimo de 14 caracteres, complexidade e reuso bloqueado (ou adote SSO e elimine senhas IAM)."
+        }
+      ]
+    }
+  },
+  "IAM.WILDCARD_ADMIN_POLICY": {
+    "title": "Policy '{var}' concede Action:* em Resource:*",
+    "severity": "high",
+    "description": "A policy '{var}' está anexada a {var} entidade(s) e equivale a AdministratorAccess, violando menor privilégio.",
+    "remediation": "Use IAM Access Analyzer (policy generation) para gerar uma policy a partir do CloudTrail dos últimos 90 dias e substitua o wildcard.",
+    "pillar": "security",
+    "well_architected": "SEC03-BP02",
+    "permissions": [
+      "iam:ListPolicies",
+      "iam:GetPolicyVersion",
+      "iam:GetPolicy"
+    ],
+    "evaluate": {
+      "resource": "iam.policy",
+      "service": "iam",
+      "skip_if_none": true,
+      "operation": "get_policy_version",
+      "extract": "PolicyVersion.Document.Statement",
+      "operator": "any_item",
+      "json_parse": [
+        "PolicyVersion.Document"
+      ],
+      "where": {
+        "operator": "and",
+        "conditions": [
+          {
+            "extract": "Effect",
+            "operator": "equals",
+            "value": "Allow"
+          },
+          {
+            "extract": "Condition",
+            "operator": "falsy"
+          },
+          {
+            "extract": "Action",
+            "operator": "contains",
+            "value": "*"
+          },
+          {
+            "extract": "Resource",
+            "operator": "contains",
+            "value": "*"
+          }
+        ]
+      },
+      "exposure": [
+        "privileged_identity"
+      ],
+      "vars": [
+        {
+          "operation": "get_policy",
+          "params": {
+            "PolicyArn": "{PolicyArn}"
+          },
+          "extract": "Policy.AttachmentCount",
+          "default": 0
+        }
+      ],
+      "region": "us-east-1"
+    }
+  },
+  "IAM.INACTIVE_USER": {
+    "title": "Usuário '{var}' nunca autenticou",
+    "severity": "low",
+    "description": "Criado há {var} dias sem nenhum uso de senha ou chave.",
+    "remediation": "Remova o usuário ou documente o motivo de mantê-lo.",
+    "pillar": "security",
+    "well_architected": "SEC03-BP04",
+    "permissions": [
+      "iam:ListUsers",
+      "iam:GetUser",
+      "iam:ListAccessKeys",
+      "iam:GetAccessKeyLastUsed"
+    ],
+    "evaluate": {
+      "resource": "iam.user",
+      "service": "iam",
+      "skip_if_none": true,
+      "operator": "or",
+      "conditions": [
+        {
+          "operator": "and",
+          "conditions": [
+            {
+              "operator": "and",
+              "conditions": [
+                {
+                  "operation": "get_user",
+                  "extract": "User.PasswordLastUsed",
+                  "operator": "falsy"
+                },
+                {
+                  "operation": "list_access_keys",
+                  "extract": "AccessKeyMetadata",
+                  "operator": "none_item",
+                  "where": {
+                    "operation": "get_access_key_last_used",
+                    "extract": "AccessKeyLastUsed.LastUsedDate",
+                    "operator": "truthy",
+                    "params": {
+                      "AccessKeyId": "{item.AccessKeyId}"
+                    }
+                  }
+                }
+              ]
+            },
+            {
+              "operation": "get_user",
+              "extract": "User.CreateDate",
+              "operator": "age_days_gt",
+              "value": 90
+            }
+          ]
+        },
+        {
+          "operator": "and",
+          "conditions": [
+            {
+              "operator": "or",
+              "conditions": [
+                {
+                  "operation": "get_user",
+                  "extract": "User.PasswordLastUsed",
+                  "operator": "truthy"
+                },
+                {
+                  "operation": "list_access_keys",
+                  "extract": "AccessKeyMetadata",
+                  "operator": "any_item",
+                  "where": {
+                    "operation": "get_access_key_last_used",
+                    "extract": "AccessKeyLastUsed.LastUsedDate",
+                    "operator": "truthy",
+                    "params": {
+                      "AccessKeyId": "{item.AccessKeyId}"
+                    }
+                  }
+                }
+              ]
+            },
+            {
+              "operator": "or",
+              "conditions": [
+                {
+                  "operation": "get_user",
+                  "extract": "User.PasswordLastUsed",
+                  "operator": "falsy"
+                },
+                {
+                  "operation": "get_user",
+                  "extract": "User.PasswordLastUsed",
+                  "operator": "age_days_gt",
+                  "value": 90
+                }
+              ]
+            },
+            {
+              "operation": "list_access_keys",
+              "extract": "AccessKeyMetadata",
+              "operator": "none_item",
+              "where": {
+                "operator": "and",
+                "conditions": [
+                  {
+                    "operation": "get_access_key_last_used",
+                    "extract": "AccessKeyLastUsed.LastUsedDate",
+                    "operator": "truthy",
+                    "params": {
+                      "AccessKeyId": "{item.AccessKeyId}"
+                    }
+                  },
+                  {
+                    "operation": "get_access_key_last_used",
+                    "extract": "AccessKeyLastUsed.LastUsedDate",
+                    "operator": "age_days_lte",
+                    "params": {
+                      "AccessKeyId": "{item.AccessKeyId}"
+                    },
+                    "value": 90
+                  }
+                ]
+              }
+            }
+          ]
+        }
+      ],
+      "exposure": [],
+      "title": "Usuário '{var}' inativo há mais de 90 dias",
+      "description": "Identidades órfãs costumam sobreviver a offboarding e viram porta de entrada.",
+      "remediation": "Revogue credenciais e remova o usuário após confirmar com o time responsável.",
+      "overrides": [
+        {
+          "when": {
+            "operator": "and",
+            "conditions": [
+              {
+                "operation": "get_user",
+                "extract": "User.PasswordLastUsed",
+                "operator": "falsy"
+              },
+              {
+                "operation": "list_access_keys",
+                "extract": "AccessKeyMetadata",
+                "operator": "none_item",
+                "where": {
+                  "operation": "get_access_key_last_used",
+                  "extract": "AccessKeyLastUsed.LastUsedDate",
+                  "operator": "truthy",
+                  "params": {
+                    "AccessKeyId": "{item.AccessKeyId}"
+                  }
+                }
+              }
+            ]
+          },
+          "title": "Usuário '{var}' nunca autenticou",
+          "description": "O usuário '{var}' foi criado há {var} dias sem nenhum uso de senha ou chave.",
+          "remediation": "Remova o usuário ou documente o motivo de mantê-lo.",
+          "vars": [
+            {
+              "operation": "get_user",
+              "extract": "User.CreateDate",
+              "transform": "days_since"
+            }
+          ]
+        }
+      ],
+      "region": "us-east-1"
+    }
+  }
+}

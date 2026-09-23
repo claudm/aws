@@ -50,29 +50,94 @@ Resources:
                 Effect: Allow
                 Action:
                   - access-analyzer:ListAnalyzers
+                  - acm:DescribeCertificate
+                  - acm:ListCertificates
+                  - amplify:GetApp
+                  - amplify:ListApps
+                  - apigateway:GET
+                  - appsync:GetGraphqlApi
+                  - appsync:ListGraphqlApis
+                  - athena:GetWorkGroup
+                  - athena:ListWorkGroups
+                  - autoscaling:DescribeAutoScalingGroups
+                  - backup:DescribeBackupVault
+                  - backup:ListBackupVaults
+                  - bedrock:GetModelInvocationLoggingConfiguration
                   - budgets:ViewBudget
                   - ce:GetCostAndUsage
+                  - cloudformation:DescribeStacks
                   - cloudfront:GetDistribution
                   - cloudfront:ListDistributions
+                  - cloudtrail:GetTrail
                   - cloudwatch:GetMetricData
+                  - cloudwatch:GetMetricStatistics
+                  - codebuild:BatchGetProjects
+                  - codebuild:ListProjects
+                  - cognito-idp:DescribeUserPool
+                  - cognito-idp:ListUserPools
+                  - docdb:DescribeDBClusters
                   - dynamodb:DescribeTable
                   - dynamodb:ListTables
+                  - ec2:DescribeImages
                   - ec2:GetEbsEncryptionByDefault
+                  - ecs:DescribeClusters
+                  - ecs:ListClusters
                   - eks:DescribeCluster
                   - eks:ListClusters
+                  - elasticache:DescribeCacheClusters
+                  - elasticache:DescribeReplicationGroups
+                  - elasticbeanstalk:DescribeConfigurationSettings
+                  - elasticbeanstalk:DescribeEnvironments
+                  - elasticfilesystem:DescribeFileSystems
                   - elasticloadbalancing:DescribeLoadBalancerAttributes
-                  - iam:GenerateCredentialReport
-                  - iam:GetCredentialReport
+                  - elasticmapreduce:GetBlockPublicAccessConfiguration
+                  - es:DescribeElasticsearchDomains
+                  - es:ListDomainNames
+                  - events:DescribeEventBus
+                  - events:ListEventBuses
+                  - globalaccelerator:DescribeAcceleratorAttributes
+                  - globalaccelerator:ListAccelerators
+                  - glue:GetDataCatalogEncryptionSettings
+                  - iam:GetAccessKeyLastUsed
+                  - iam:GetLoginProfile
+                  - iam:GetPolicy
+                  - iam:GetUser
+                  - iam:ListAccessKeys
+                  - iam:ListMFADevices
+                  - iam:ListUsers
+                  - kafka:DescribeClusterV2
+                  - kafka:ListClustersV2
+                  - kinesis:DescribeStreamSummary
+                  - kinesis:ListStreams
+                  - lambda:GetFunctionConfiguration
+                  - logs:DescribeLogGroups
+                  - macie2:GetMacieSession
+                  - mq:DescribeBroker
+                  - mq:ListBrokers
+                  - organizations:DescribeOrganization
                   - pricing:GetProducts
-                  - rds:DescribeDBClusterSnapshots
                   - rds:DescribeDBClusters
+                  - rds:DescribeDBClusterSnapshots
                   - rds:DescribeDBInstances
                   - rds:DescribeDBSnapshots
+                  - redshift:DescribeClusters
+                  - route53:ListHostedZones
+                  - route53:ListQueryLoggingConfigs
                   - s3:GetAccountPublicAccessBlock
+                  - sagemaker:DescribeNotebookInstance
+                  - sagemaker:ListNotebookInstances
+                  - secretsmanager:DescribeSecret
+                  - ses:GetIdentityDkimAttributes
+                  - ses:ListIdentities
                   - sns:GetTopicAttributes
                   - sns:ListTopics
                   - sqs:GetQueueAttributes
                   - sqs:ListQueues
+                  - ssm:GetDocument
+                  - states:DescribeStateMachine
+                  - states:ListStateMachines
+                  - wafv2:GetLoggingConfiguration
+                  - wafv2:ListWebACLs
                 Resource: "*"
               - Sid: NeverReadObjectData
                 Effect: Deny

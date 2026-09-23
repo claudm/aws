@@ -1,0 +1,24 @@
+{
+  "CODEBUILD.PRIVILEGED_MODE": {
+    "title": "Projeto CodeBuild '{var}' possui modo privilegiado",
+    "severity": "high",
+    "description": "O projeto '{var}' está configurado com 'privilegedMode=True'. Isso permite ao build container acessar a engine Docker do host, o que pode ser abusado em caso de comprometimento da pipeline.",
+    "remediation": "Desabilite o privilegedMode caso o projeto não precise construir imagens Docker via Docker-in-Docker.",
+    "pillar": "security",
+    "exposure": [
+      "compute"
+    ],
+    "permissions": [
+      "codebuild:ListProjects",
+      "codebuild:BatchGetProjects"
+    ],
+    "evaluate": {
+      "resource": "codebuild.project",
+      "service": "codebuild",
+      "operation": "batch_get_projects",
+      "skip_if_none": true,
+      "extract": "projects.0.environment.privilegedMode",
+      "operator": "truthy"
+    }
+  }
+}

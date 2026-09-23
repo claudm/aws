@@ -1,0 +1,230 @@
+{
+  "S3.ACCOUNT_PUBLIC_ACCESS_BLOCK": {
+    "title": "Block Public Access não está ativo no nível da conta",
+    "severity": "high",
+    "well_architected": "SEC01-BP02",
+    "description": "Sem o bloqueio no nível da conta, qualquer bucket novo pode ser exposto publicamente por ACL ou policy. Flags desligadas: {var}.",
+    "remediation": "S3 > Block Public Access settings for this account > ative as 4 opções. Faça antes um inventário de buckets que servem conteúdo público via CloudFront/OAC.",
+    "exposure": [
+      "internet_facing",
+      "data_store"
+    ],
+    "evaluate": {
+      "resource": "s3control.account",
+      "service": "s3control",
+      "operation": "get_public_access_block",
+      "params": {
+        "AccountId": "{AccountId}"
+      },
+      "ignore_errors": [
+        "NoSuchPublicAccessBlockConfiguration"
+      ],
+      "extract": "PublicAccessBlockConfiguration",
+      "operator": "missing_keys",
+      "keys": [
+        "BlockPublicAcls",
+        "IgnorePublicAcls",
+        "BlockPublicPolicy",
+        "RestrictPublicBuckets"
+      ]
+    },
+    "pillar": "security",
+    "permissions": [
+      "s3:GetAccountPublicAccessBlock"
+    ]
+  },
+  "S3.BUCKET_PUBLIC": {
+    "title": "Bucket '{var}' está público",
+    "severity": "critical",
+    "well_architected": "SEC01-BP02",
+    "description": "O bucket é acessível publicamente via {var}.",
+    "remediation": "Se for hosting estático, mantenha o bucket privado e sirva por CloudFront com Origin Access Control. Caso contrário, ative o Block Public Access no bucket.",
+    "evaluate": {
+      "resource": "s3.bucket",
+      "operator": "or",
+      "conditions": [
+        {
+          "service": "s3",
+          "operation": "get_bucket_policy_status",
+          "ignore_errors": [
+            "NoSuchBucketPolicy"
+          ],
+          "extract": "PolicyStatus.IsPublic",
+          "operator": "is_true"
+        },
+        {
+          "service": "s3",
+          "operation": "get_bucket_acl",
+          "operator": "jsonpath",
+          "_comment": "Busca na ACL por concessões a AllUsers ou AuthenticatedUsers",
+          "expression": "$.Grants[?(@.Grantee.URI =~ '.*AllUsers.*' | @.Grantee.URI =~ '.*AuthenticatedUsers.*')]"
+        }
+      ]
+    },
+    "pillar": "security",
+    "permissions": [
+      "s3:GetBucketPolicyStatus",
+      "s3:GetBucketAcl"
+    ]
+  },
+  "S3.BUCKET_PUBLIC_ACCESS_BLOCK": {
+    "title": "Bucket '{var}' sem Block Public Access completo",
+    "severity": "medium",
+    "well_architected": "SEC01-BP02",
+    "description": "Flags ausentes: {var}. O bucket pode ser exposto por engano.",
+    "remediation": "Ative as 4 flags no bucket, ou aplique o bloqueio no nível da conta.",
+    "evaluate": {
+      "resource": "s3.bucket",
+      "service": "s3",
+      "operation": "get_public_access_block",
+      "params": {
+        "Bucket": "{Name}"
+      },
+      "ignore_errors": [
+        "NoSuchPublicAccessBlockConfiguration"
+      ],
+      "extract": "PublicAccessBlockConfiguration",
+      "operator": "missing_keys",
+      "keys": [
+        "BlockPublicAcls",
+        "IgnorePublicAcls",
+        "BlockPublicPolicy",
+        "RestrictPublicBuckets"
+      ]
+    },
+    "pillar": "security",
+    "permissions": [
+      "s3:GetBucketPublicAccessBlock"
+    ]
+  },
+  "S3.DEFAULT_ENCRYPTION": {
+    "title": "Bucket '{var}' sem chave gerenciada (SSE-KMS)",
+    "severity": "low",
+    "well_architected": "SEC08-BP02",
+    "description": "O bucket usa apenas SSE-S3. Sem KMS não há key policy própria, trilha de uso da chave no CloudTrail nem possibilidade de revogar acesso via chave.",
+    "remediation": "Configure SSE-KMS com uma CMK e ative Bucket Keys para conter o custo de requisições ao KMS. Para dados sem classificação, SSE-S3 pode ser aceito formalmente.",
+    "evaluate": {
+      "resource": "s3.bucket",
+      "service": "s3",
+      "operation": "get_bucket_encryption",
+      "params": {
+        "Bucket": "{Name}"
+      },
+      "ignore_errors": [
+        "ServerSideEncryptionConfigurationNotFoundError"
+      ],
+      "operator": "jsonpath",
+      "_comment": "Verifica se o algoritmo de criptografia padrão é diferente de KMS (aws:kms ou aws:kms:dsse)",
+      "expression": "$.ServerSideEncryptionConfiguration.Rules[*].ApplyServerSideEncryptionByDefault.SSEAlgorithm",
+      "expected": "not_contains",
+      "value": [
+        "aws:kms",
+        "aws:kms:dsse"
+      ]
+    },
+    "pillar": "security",
+    "permissions": [
+      "s3:GetEncryptionConfiguration"
+    ]
+  },
+  "S3.TLS_ONLY_POLICY": {
+    "title": "Bucket '{var}' sem Deny para conexões não-TLS",
+    "severity": "low",
+    "well_architected": "SEC09-BP02",
+    "description": "Sem a condição aws:SecureTransport, requisições HTTP em texto claro são aceitas.",
+    "remediation": "Adicione um statement Deny com Condition {\"Bool\": {\"aws:SecureTransport\": \"false\"}} na bucket policy.",
+    "evaluate": {
+      "resource": "s3.bucket",
+      "service": "s3",
+      "operation": "get_bucket_policy",
+      "params": {
+        "Bucket": "{Name}"
+      },
+      "ignore_errors": [
+        "NoSuchBucketPolicy"
+      ],
+      "operator": "jsonpath",
+      "_comment": "Busca na Bucket Policy por statement que negue explicitamente conexões não-TLS (aws:SecureTransport false)",
+      "json_parse": [
+        "Policy"
+      ],
+      "expression": "$.Policy.Statement[?(@.Effect=='Deny' & (@.Condition.Bool.'aws:SecureTransport'=='false' | @.Condition.BoolIfExists.'aws:SecureTransport'=='false'))]",
+      "expected": "empty"
+    },
+    "pillar": "security",
+    "permissions": [
+      "s3:GetBucketPolicy"
+    ]
+  },
+  "S3.ACCESS_LOGGING": {
+    "title": "Bucket '{var}' sem log de acesso",
+    "severity": "low",
+    "well_architected": "SEC04-BP01",
+    "description": "Sem server access logs ou CloudTrail data events não há trilha de leitura de objetos.",
+    "remediation": "Ative CloudTrail data events (mais rico e pesquisável) para buckets sensíveis, ou server access logging para buckets de alto volume.",
+    "evaluate": {
+      "resource": "s3.bucket",
+      "service": "s3",
+      "operation": "get_bucket_logging",
+      "params": {
+        "Bucket": "{Name}"
+      },
+      "operator": "missing_keys",
+      "keys": [
+        "LoggingEnabled"
+      ]
+    },
+    "pillar": "security",
+    "permissions": [
+      "s3:GetBucketLogging"
+    ]
+  },
+  "S3.VERSIONING_DISABLED": {
+    "title": "Bucket '{var}' sem versionamento",
+    "severity": "medium",
+    "well_architected": "REL09-BP01",
+    "description": "Sem versionamento, um DeleteObject ou PutObject acidental (ou malicioso) é irreversível — inclusive para ransomware.",
+    "remediation": "Ative versionamento + lifecycle para expirar versões antigas, e considere Object Lock em buckets de backup.",
+    "evaluate": {
+      "resource": "s3.bucket",
+      "service": "s3",
+      "operation": "get_bucket_versioning",
+      "params": {
+        "Bucket": "{Name}"
+      },
+      "extract": "Status",
+      "operator": "not_equals",
+      "value": "Enabled"
+    },
+    "pillar": "reliability",
+    "permissions": [
+      "s3:GetBucketVersioning"
+    ]
+  },
+  "S3.MULTIPART_INCOMPLETE": {
+    "title": "Bucket '{var}' sem limpeza de uploads incompletos",
+    "severity": "low",
+    "well_architected": "COST04-BP02",
+    "description": "Uploads multipart que falham deixam partes ocultas no bucket que cobram storage indefinidamente.",
+    "remediation": "Crie uma lifecycle rule com 'AbortIncompleteMultipartUpload' = 7 dias.",
+    "evaluate": {
+      "resource": "s3.bucket",
+      "service": "s3",
+      "operation": "get_bucket_lifecycle_configuration",
+      "params": {
+        "Bucket": "{Name}"
+      },
+      "ignore_errors": [
+        "NoSuchLifecycleConfiguration"
+      ],
+      "operator": "jsonpath",
+      "_comment": "Busca regras de ciclo de vida ativas que configurem o descarte de uploads multipart incompletos",
+      "expression": "$.Rules[?(@.Status=='Enabled' & @.AbortIncompleteMultipartUpload)]",
+      "expected": "empty"
+    },
+    "pillar": "cost",
+    "permissions": [
+      "s3:GetLifecycleConfiguration"
+    ]
+  }
+}

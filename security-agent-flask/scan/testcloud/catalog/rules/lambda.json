@@ -1,0 +1,388 @@
+{
+  "LAMBDA.UNSUPPORTED_RUNTIME": {
+    "title": "Função Lambda '{var}' usa runtime obsoleto ({var})",
+    "severity": "medium",
+    "description": "A função Lambda '{var}' está configurada com o runtime '{var}', que não recebe mais atualizações de segurança e correções de bugs. A AWS pode proibir a criação e atualização de funções com esse runtime.",
+    "remediation": "Atualize o código da função Lambda para ser compatível com a versão mais recente do runtime e atualize a configuração da função.",
+    "pillar": "security",
+    "well_architected": "SEC04-BP02",
+    "exposure": [
+      "compute"
+    ],
+    "permissions": [
+      "lambda:ListFunctions",
+      "lambda:GetFunctionConfiguration"
+    ],
+    "evaluate": {
+      "resource": "lambda.function",
+      "service": "lambda",
+      "operation": "get_function_configuration",
+      "skip_if_none": true,
+      "extract": "Runtime",
+      "operator": "in",
+      "value": [
+        "python2.7",
+        "python3.6",
+        "python3.7",
+        "python3.8",
+        "nodejs10.x",
+        "nodejs12.x",
+        "nodejs14.x",
+        "ruby2.5",
+        "ruby2.7",
+        "go1.x",
+        "java8"
+      ],
+      "vars": [
+        {
+          "operation": "get_function_configuration",
+          "extract": "Runtime"
+        }
+      ]
+    }
+  },
+  "LAMBDA.DEPRECATED_RUNTIME": {
+    "title": "Função '{var}' usa runtime {var}",
+    "severity": "medium",
+    "description": "Runtimes fora de suporte deixam de receber patches do sistema operacional e da linguagem, e eventualmente perdem a permissão de atualizar o código.",
+    "remediation": "Migre para a versão suportada mais recente e valide em staging antes do cutover.",
+    "pillar": "security",
+    "well_architected": "SEC06-BP03",
+    "permissions": [
+      "lambda:ListFunctions",
+      "lambda:GetFunctionConfiguration"
+    ],
+    "evaluate": {
+      "resource": "lambda.function",
+      "service": "lambda",
+      "skip_if_none": true,
+      "operation": "get_function_configuration",
+      "extract": "Runtime",
+      "operator": "in",
+      "value": [
+        "python2.7",
+        "python3.6",
+        "python3.7",
+        "python3.8",
+        "python3.9",
+        "nodejs10.x",
+        "nodejs12.x",
+        "nodejs14.x",
+        "nodejs16.x",
+        "nodejs18.x",
+        "ruby2.5",
+        "ruby2.7",
+        "ruby3.2",
+        "java8",
+        "dotnetcore2.1",
+        "dotnetcore3.1",
+        "dotnet6",
+        "go1.x"
+      ],
+      "exposure": [],
+      "vars": [
+        {
+          "operation": "get_function_configuration",
+          "extract": "Runtime"
+        }
+      ]
+    }
+  },
+  "LAMBDA.PLAINTEXT_SECRET": {
+    "title": "Função '{var}' com {var} variável(is) suspeita(s) de segredo",
+    "severity": "medium",
+    "description": "A função '{var}' tem {var} variável(is) de ambiente com nome de segredo: {var}. Variáveis de ambiente aparecem em GetFunctionConfiguration, no console e em exports de IaC. O valor não foi lido nem armazenado por este scan.",
+    "remediation": "Mova para Secrets Manager ou SSM Parameter Store (SecureString) e resolva em runtime, com cache via extensão de parâmetros.",
+    "pillar": "security",
+    "well_architected": "SEC02-BP03",
+    "permissions": [
+      "lambda:ListFunctions",
+      "lambda:GetFunctionConfiguration"
+    ],
+    "evaluate": {
+      "resource": "lambda.function",
+      "service": "lambda",
+      "skip_if_none": true,
+      "operation": "get_function_configuration",
+      "extract": "Environment.Variables",
+      "operator": "any_item",
+      "as_items": true,
+      "id": "secrets",
+      "collect": "Key",
+      "where": {
+        "operator": "and",
+        "conditions": [
+          {
+            "extract": "Key",
+            "operator": "regex",
+            "value": "(pass(word|wd)?|secret|token|api[_-]?key|private[_-]?key|credential|conn(ection)?[_-]?string)"
+          },
+          {
+            "extract": "Value",
+            "operator": "truthy"
+          },
+          {
+            "extract": "Value",
+            "operator": "not_regex",
+            "value": "^(arn:aws[a-z\\-]*:|/aws/reference/secretsmanager|ssm://|\\{\\{resolve:)"
+          }
+        ]
+      },
+      "exposure": [],
+      "vars": [
+        {
+          "capture": "secrets",
+          "field": "count"
+        },
+        {
+          "capture": "secrets",
+          "field": "values",
+          "transform": "join",
+          "sort": true,
+          "limit": 8
+        }
+      ],
+      "evidence": {
+        "suspect_keys": {
+          "capture": "secrets",
+          "field": "values",
+          "transform": "sorted"
+        }
+      }
+    }
+  },
+  "LAMBDA.NO_DLQ": {
+    "title": "Função '{var}' sem DLQ nem destino OnFailure",
+    "severity": "low",
+    "description": "Invocações assíncronas que esgotam as retentativas são descartadas silenciosamente — o evento se perde sem rastro além da métrica de erro.",
+    "remediation": "Configure OnFailure destination (SQS/SNS/EventBridge) para reprocessamento.",
+    "pillar": "reliability",
+    "well_architected": "REL05-BP02",
+    "permissions": [
+      "lambda:ListFunctions",
+      "lambda:GetFunctionEventInvokeConfig",
+      "lambda:GetFunctionConfiguration"
+    ],
+    "evaluate": {
+      "resource": "lambda.function",
+      "service": "lambda",
+      "skip_if_none": true,
+      "operator": "and",
+      "conditions": [
+        {
+          "operation": "get_function_configuration",
+          "extract": "DeadLetterConfig.TargetArn",
+          "operator": "falsy"
+        },
+        {
+          "operation": "get_function_event_invoke_config",
+          "extract": "DestinationConfig.OnFailure.Destination",
+          "operator": "falsy",
+          "ignore_errors": [
+            "ResourceNotFoundException"
+          ],
+          "skip_if_none": false
+        }
+      ],
+      "exposure": []
+    }
+  },
+  "COST.LAMBDA_HIGH_MEMORY": {
+    "title": "Função '{var}' com {var} MB de memória e duração média de {var} ms",
+    "severity": "low",
+    "description": "A função '{var}' tem {var} MB de memória para execuções de {var} ms em média ({var} invocações em 14 dias) e usou no máximo {var} MB (Lambda Insights). O custo do Lambda é proporcional a memória × duração; a economia considera o pico usado + 30% de folga.",
+    "remediation": "Reduza a memória para o pico usado com folga (ou rode o AWS Lambda Power Tuning) e avalie arm64 (Graviton), ~20% mais barato.",
+    "pillar": "cost",
+    "well_architected": "COST06-BP03",
+    "exposure": [],
+    "permissions": [
+      "lambda:GetFunctionConfiguration",
+      "cloudwatch:GetMetricData"
+    ],
+    "evaluate": {
+      "resource": "lambda.function",
+      "service": "lambda",
+      "skip_if_none": true,
+      "operator": "and",
+      "conditions": [
+        {
+          "operation": "get_function_configuration",
+          "extract": "MemorySize",
+          "operator": "gte",
+          "value": 1024
+        },
+        {
+          "operation": "get_metric_data",
+          "service": "cloudwatch",
+          "batch": true,
+          "params": {
+            "MetricDataQueries": [
+              {
+                "Id": "result",
+                "ReturnData": true,
+                "MetricStat": {
+                  "Metric": {
+                    "Namespace": "AWS/Lambda",
+                    "MetricName": "Invocations",
+                    "Dimensions": [
+                      {
+                        "Name": "FunctionName",
+                        "Value": "{FunctionName}"
+                      }
+                    ]
+                  },
+                  "Period": 86400,
+                  "Stat": "Sum"
+                }
+              }
+            ],
+            "StartTime": "{now-14d}",
+            "EndTime": "{now}"
+          },
+          "operator": "aggregate",
+          "extract": "MetricDataResults.0.Values",
+          "fn": "sum",
+          "compare": "gte",
+          "value": 1000,
+          "id": "invocations"
+        },
+        {
+          "operation": "get_metric_data",
+          "service": "cloudwatch",
+          "batch": true,
+          "params": {
+            "MetricDataQueries": [
+              {
+                "Id": "result",
+                "ReturnData": true,
+                "MetricStat": {
+                  "Metric": {
+                    "Namespace": "AWS/Lambda",
+                    "MetricName": "Duration",
+                    "Dimensions": [
+                      {
+                        "Name": "FunctionName",
+                        "Value": "{FunctionName}"
+                      }
+                    ]
+                  },
+                  "Period": 86400,
+                  "Stat": "Average"
+                }
+              }
+            ],
+            "StartTime": "{now-14d}",
+            "EndTime": "{now}"
+          },
+          "operator": "aggregate",
+          "extract": "MetricDataResults.0.Values",
+          "fn": "avg",
+          "compare": "lt",
+          "value": 100,
+          "min_count": 3,
+          "id": "duration"
+        },
+        {
+          "operator": "or",
+          "conditions": [
+            {
+              "operation": "get_metric_data",
+              "service": "cloudwatch",
+              "batch": true,
+              "params": {
+                "MetricDataQueries": [
+                  {
+                    "Id": "result",
+                    "ReturnData": true,
+                    "MetricStat": {
+                      "Metric": {
+                        "Namespace": "LambdaInsights",
+                        "MetricName": "used_memory_max",
+                        "Dimensions": [
+                          {
+                            "Name": "function_name",
+                            "Value": "{FunctionName}"
+                          }
+                        ]
+                      },
+                      "Period": 86400,
+                      "Stat": "Maximum"
+                    }
+                  }
+                ],
+                "StartTime": "{now-14d}",
+                "EndTime": "{now}"
+              },
+              "operator": "aggregate",
+              "extract": "MetricDataResults.0.Values",
+              "fn": "max",
+              "compare": "lt",
+              "value_from": {
+                "operation": "get_function_configuration",
+                "extract": "MemorySize"
+              },
+              "factor": 0.7,
+              "id": "used"
+            },
+            {
+              "capture": "used",
+              "operator": "falsy"
+            }
+          ]
+        }
+      ],
+      "vars": [
+        {
+          "operation": "get_function_configuration",
+          "extract": "MemorySize"
+        },
+        {
+          "capture": "duration",
+          "transform": "round"
+        },
+        {
+          "capture": "invocations",
+          "transform": "round",
+          "digits": 0
+        },
+        {
+          "capture": "used",
+          "transform": "round",
+          "digits": 0
+        }
+      ],
+      "waste": {
+        "fn": "lambda_memory_saving",
+        "args": [
+          {
+            "operation": "get_function_configuration",
+            "extract": "MemorySize",
+            "default": 0
+          },
+          {
+            "capture": "duration",
+            "default": 0
+          },
+          {
+            "capture": "invocations",
+            "default": 0
+          },
+          {
+            "capture": "used"
+          }
+        ]
+      },
+      "overrides": [
+        {
+          "when": {
+            "capture": "waste",
+            "extract": "value",
+            "operator": "equals",
+            "value": null
+          },
+          "description": "A função '{var}' tem {var} MB de memória para execuções de {var} ms em média ({var} invocações em 14 dias). Economia não estimada: sem Lambda Insights não há o pico de memória usado — habilite o Insights ou rode o AWS Lambda Power Tuning."
+        }
+      ]
+    }
+  }
+}

@@ -1,0 +1,24 @@
+{
+  "ELASTICACHE.TRANSIT_ENCRYPTION_DISABLED": {
+    "title": "Cluster ElastiCache '{var}' sem criptografia em trânsito",
+    "severity": "high",
+    "description": "O cluster '{var}' transmite dados de cache em texto plano dentro da VPC.",
+    "remediation": "Re-crie o cluster ElastiCache com TransitEncryptionEnabled=True.",
+    "pillar": "security",
+    "exposure": [
+      "data_store"
+    ],
+    "permissions": [
+      "elasticache:DescribeCacheClusters",
+      "elasticache:DescribeReplicationGroups"
+    ],
+    "evaluate": {
+      "resource": "elasticache.cluster",
+      "service": "elasticache",
+      "operation": "describe_cache_clusters",
+      "skip_if_none": true,
+      "extract": "CacheClusters.0.TransitEncryptionEnabled",
+      "operator": "falsy"
+    }
+  }
+}

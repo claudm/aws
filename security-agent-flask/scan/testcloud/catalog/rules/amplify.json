@@ -1,0 +1,24 @@
+{
+  "AMPLIFY.BASIC_AUTH_DISABLED": {
+    "title": "App Amplify '{var}' sem Basic Auth ativado",
+    "severity": "low",
+    "description": "A aplicação não possui proteção por senha (Basic Auth) nas raízes de acesso. É recomendado em ambientes de desenvolvimento ou homologação evitar o vazamento público ou a indexação por bots de funcionalidades inacabadas ou chaves sensíveis embutidas.",
+    "remediation": "No console do AWS Amplify, em 'Access control', ative a proteção por senha para branches sensíveis ou para a aplicação inteira em dev.",
+    "pillar": "security",
+    "exposure": [
+      "internet_facing"
+    ],
+    "permissions": [
+      "amplify:ListApps",
+      "amplify:GetApp"
+    ],
+    "evaluate": {
+      "resource": "amplify.app",
+      "service": "amplify",
+      "operation": "get_app",
+      "skip_if_none": true,
+      "extract": "app.enableBasicAuth",
+      "operator": "falsy"
+    }
+  }
+}

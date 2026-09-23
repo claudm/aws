@@ -1,0 +1,27 @@
+{
+  "APIGW.EXECUTION_LOGGING": {
+    "title": "API Gateway '{var}' (stage '{var}') sem execution logging",
+    "severity": "medium",
+    "description": "A API '{var}' (stage '{var}') não possui logging de execução ativado (nível OFF ou não configurado).",
+    "remediation": "Habilite o Execution Logging nas configurações de Logs/Tracing do stage para o nível INFO ou ERROR.",
+    "pillar": "security",
+    "exposure": [
+      "internet_facing"
+    ],
+    "permissions": [
+      "apigateway:GET"
+    ],
+    "evaluate": {
+      "resource": "apigateway.stage",
+      "service": "apigateway",
+      "operation": "get_stage",
+      "skip_if_none": true,
+      "extract": "methodSettings.*/*.loggingLevel",
+      "operator": "in",
+      "value": [
+        null,
+        "OFF"
+      ]
+    }
+  }
+}

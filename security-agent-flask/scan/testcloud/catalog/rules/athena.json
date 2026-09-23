@@ -1,0 +1,28 @@
+{
+  "ATHENA.WORKGROUP_ENCRYPTION": {
+    "title": "Workgroup Athena '{var}' sem criptografia forte (KMS) ativada",
+    "severity": "medium",
+    "description": "O workgroup '{var}' não está forçando a criptografia dos resultados com KMS (SSE_KMS ou CSE_KMS).",
+    "remediation": "Ative a configuração 'EnforceWorkGroupConfiguration' e defina o EncryptionOption para SSE_KMS.",
+    "pillar": "security",
+    "exposure": [
+      "data_store"
+    ],
+    "permissions": [
+      "athena:ListWorkGroups",
+      "athena:GetWorkGroup"
+    ],
+    "evaluate": {
+      "resource": "athena.workgroup",
+      "service": "athena",
+      "operation": "get_work_group",
+      "skip_if_none": true,
+      "extract": "WorkGroup.Configuration.ResultConfiguration.EncryptionConfiguration.EncryptionOption",
+      "operator": "in",
+      "value": [
+        null,
+        "SSE_S3"
+      ]
+    }
+  }
+}

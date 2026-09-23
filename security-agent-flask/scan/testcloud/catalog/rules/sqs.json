@@ -1,0 +1,25 @@
+{
+  "SQS.NOT_ENCRYPTED": {
+    "title": "Fila SQS '{var}' sem criptografia KMS",
+    "severity": "medium",
+    "description": "Sem KmsMasterKeyId, as mensagens são criptografadas com a chave gerenciada pela AWS (aws/sqs). Sem uma CMK não há controle de quem pode descriptografar nem trilha de uso da chave no CloudTrail.",
+    "remediation": "Crie uma CMK e associe à fila (KmsMasterKeyId). A key policy precisa permitir sqs:SendMessage e sqs:ReceiveMessage para o serviço SQS.",
+    "pillar": "security",
+    "well_architected": "SEC08-BP02",
+    "exposure": [
+      "data_store"
+    ],
+    "permissions": [
+      "sqs:ListQueues",
+      "sqs:GetQueueAttributes"
+    ],
+    "evaluate": {
+      "resource": "sqs.queue",
+      "service": "sqs",
+      "operation": "get_queue_attributes",
+      "skip_if_none": true,
+      "extract": "Attributes.KmsMasterKeyId",
+      "operator": "falsy"
+    }
+  }
+}

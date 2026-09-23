@@ -1,0 +1,24 @@
+{
+  "MACIE.NOT_ENABLED": {
+    "title": "Amazon Macie desativado em {var}",
+    "severity": "low",
+    "description": "Sem o Macie habilitado, a conta não possui detecção e descoberta automatizada baseada em Machine Learning para dados sensíveis (PII, tokens) esquecidos em buckets S3. Isso fere o pilar de proteção de dados de conformidades como a LGPD e GDPR.",
+    "remediation": "Habilite o Amazon Macie pelo menos para descobertas automatizadas de dados sensíveis.",
+    "pillar": "security",
+    "exposure": [
+      "data_store"
+    ],
+    "permissions": [
+      "macie2:GetMacieSession"
+    ],
+    "evaluate": {
+      "resource": "macie2.account",
+      "service": "macie2",
+      "operation": "get_macie_session",
+      "skip_if_none": false,
+      "extract": "status",
+      "operator": "not_equals",
+      "value": "ENABLED"
+    }
+  }
+}

@@ -1,0 +1,23 @@
+{
+  "DOCUMENTDB.NOT_ENCRYPTED": {
+    "title": "Cluster DocumentDB '{var}' sem criptografia em repouso",
+    "severity": "high",
+    "description": "O cluster DocumentDB '{var}' não está criptografado no armazenamento.",
+    "remediation": "Modifique ou recrie o cluster para habilitar StorageEncrypted com KMS.",
+    "pillar": "security",
+    "exposure": [
+      "data_store"
+    ],
+    "permissions": [
+      "docdb:DescribeDBClusters"
+    ],
+    "evaluate": {
+      "resource": "docdb.cluster",
+      "service": "docdb",
+      "operation": "describe_db_clusters",
+      "skip_if_none": true,
+      "extract": "DBClusters.0.StorageEncrypted",
+      "operator": "falsy"
+    }
+  }
+}

@@ -1,0 +1,27 @@
+{
+  "SES.DKIM_NOT_ENABLED": {
+    "title": "Identidade SES '{var}' sem DKIM ativado",
+    "severity": "medium",
+    "description": "A assinatura DKIM (DomainKeys Identified Mail) não está habilitada para o domínio. Sem ela, seus e-mails têm alta probabilidade de cair em caixas de spam, e cibercriminosos podem forjar e-mails (spoofing) mais facilmente se passando pela sua marca.",
+    "remediation": "No console do SES, gere as chaves DKIM para o domínio e adicione os respectivos registros CNAME no DNS (Route53) para habilitar a autenticação.",
+    "pillar": "security",
+    "exposure": [],
+    "permissions": [
+      "ses:ListIdentities",
+      "ses:GetIdentityDkimAttributes"
+    ],
+    "evaluate": {
+      "resource": "ses.identity",
+      "service": "ses",
+      "operation": "get_identity_dkim_attributes",
+      "skip_if_none": true,
+      "operator": "jsonpath",
+      "expression": "$.DkimAttributes.*.DkimEnabled",
+      "expected": "not_contains",
+      "value": [
+        true
+      ],
+      "_comment": "DKIM da identidade não está habilitado"
+    }
+  }
+}

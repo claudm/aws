@@ -1,0 +1,68 @@
+{
+  "SSM.SESSION_MANAGER_LOGGING_DISABLED": {
+    "title": "Sessões SSM sem auditoria (Documento ausente)",
+    "severity": "high",
+    "description": "O documento de preferências 'SSM-SessionManagerRunShell' não foi criado nesta região. Portanto, as sessões de terminal EC2 não possuem auditoria ou envio de logs (CloudWatch/S3).",
+    "remediation": "Crie o documento 'SSM-SessionManagerRunShell' via SSM Console para exigir logs de Sessão para CloudWatch ou S3.",
+    "pillar": "security",
+    "permissions": [
+      "ssm:GetDocument"
+    ],
+    "evaluate": {
+      "resource": "ssm.session_manager",
+      "service": "ssm",
+      "skip_if_none": false,
+      "operator": "and",
+      "conditions": [
+        {
+          "operation": "get_document",
+          "extract": "Content.inputs.s3BucketName",
+          "operator": "falsy",
+          "ignore_errors": [
+            "InvalidDocument"
+          ],
+          "skip_if_none": false,
+          "json_parse": [
+            "Content"
+          ]
+        },
+        {
+          "operation": "get_document",
+          "extract": "Content.inputs.cloudWatchLogGroupName",
+          "operator": "falsy",
+          "ignore_errors": [
+            "InvalidDocument"
+          ],
+          "skip_if_none": false,
+          "json_parse": [
+            "Content"
+          ]
+        }
+      ],
+      "params": {
+        "Name": "SSM-SessionManagerRunShell"
+      },
+      "exposure": [
+        "compute"
+      ],
+      "overrides": [
+        {
+          "when": {
+            "operation": "get_document",
+            "extract": "Content",
+            "operator": "truthy",
+            "ignore_errors": [
+              "InvalidDocument"
+            ],
+            "skip_if_none": false,
+            "json_parse": [
+              "Content"
+            ]
+          },
+          "title": "Sessões SSM sem envio de logs",
+          "description": "O documento 'SSM-SessionManagerRunShell' existe, mas não define s3BucketName nem cloudWatchLogGroupName: as sessões de terminal EC2 não são auditadas."
+        }
+      ]
+    }
+  }
+}

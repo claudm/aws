@@ -1,0 +1,28 @@
+{
+  "KINESIS.NOT_ENCRYPTED": {
+    "title": "Kinesis Stream '{var}' sem criptografia ativada",
+    "severity": "high",
+    "description": "A stream '{var}' está gravando dados em texto plano (EncryptionType=NONE).",
+    "remediation": "Edite a stream e ative a criptografia Server-Side (SSE) com uma chave KMS.",
+    "pillar": "security",
+    "exposure": [
+      "data_store"
+    ],
+    "permissions": [
+      "kinesis:ListStreams",
+      "kinesis:DescribeStreamSummary"
+    ],
+    "evaluate": {
+      "resource": "kinesis.stream",
+      "service": "kinesis",
+      "operation": "describe_stream_summary",
+      "skip_if_none": true,
+      "extract": "StreamDescriptionSummary.EncryptionType",
+      "operator": "in",
+      "value": [
+        null,
+        "NONE"
+      ]
+    }
+  }
+}

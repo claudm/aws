@@ -1,0 +1,24 @@
+{
+  "AMAZONMQ.PUBLIC_BROKER": {
+    "title": "Broker MQ '{var}' está acessível publicamente",
+    "severity": "critical",
+    "description": "O broker de mensageria '{var}' foi configurado como publicamente acessível. Serviços de fila (RabbitMQ, ActiveMQ) não devem ser expostos na internet, sob risco de exfiltração de mensagens ou ataques DDoS.",
+    "remediation": "Mova o broker para subnets privadas ou desabilite o PubliclyAccessible.",
+    "pillar": "security",
+    "exposure": [
+      "internet_facing"
+    ],
+    "permissions": [
+      "mq:ListBrokers",
+      "mq:DescribeBroker"
+    ],
+    "evaluate": {
+      "resource": "mq.broker",
+      "service": "mq",
+      "operation": "describe_broker",
+      "skip_if_none": true,
+      "extract": "PubliclyAccessible",
+      "operator": "truthy"
+    }
+  }
+}

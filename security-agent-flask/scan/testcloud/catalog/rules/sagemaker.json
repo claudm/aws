@@ -1,0 +1,47 @@
+{
+  "SAGEMAKER.NOTEBOOK_ROOT_ACCESS": {
+    "title": "SageMaker Notebook '{var}' possui acesso root habilitado",
+    "severity": "high",
+    "description": "A instância de notebook '{var}' concede privilégios root aos usuários, violando o princípio do menor privilégio.",
+    "remediation": "Desabilite o RootAccess nas configurações do Notebook ou recrie a instância com essa opção desligada.",
+    "pillar": "security",
+    "exposure": [
+      "compute"
+    ],
+    "permissions": [
+      "sagemaker:ListNotebookInstances",
+      "sagemaker:DescribeNotebookInstance"
+    ],
+    "evaluate": {
+      "resource": "sagemaker.notebook",
+      "service": "sagemaker",
+      "operation": "describe_notebook_instance",
+      "skip_if_none": true,
+      "extract": "RootAccess",
+      "operator": "equals",
+      "value": "Enabled"
+    }
+  },
+  "SAGEMAKER.NOTEBOOK_NOT_ENCRYPTED": {
+    "title": "SageMaker Notebook '{var}' sem KMS Key anexada",
+    "severity": "medium",
+    "description": "O volume de armazenamento local ML da instância '{var}' não está utilizando uma chave KMS gerenciada para criptografia extra.",
+    "remediation": "Recrie o Notebook anexando um ARN de chave KMS.",
+    "pillar": "security",
+    "exposure": [
+      "data_store"
+    ],
+    "permissions": [
+      "sagemaker:ListNotebookInstances",
+      "sagemaker:DescribeNotebookInstance"
+    ],
+    "evaluate": {
+      "resource": "sagemaker.notebook",
+      "service": "sagemaker",
+      "operation": "describe_notebook_instance",
+      "skip_if_none": true,
+      "extract": "KmsKeyId",
+      "operator": "falsy"
+    }
+  }
+}

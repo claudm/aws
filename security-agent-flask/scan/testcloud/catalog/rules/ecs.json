@@ -1,0 +1,26 @@
+{
+  "ECS.CONTAINER_INSIGHTS_DISABLED": {
+    "title": "Cluster ECS '{var}' sem Container Insights",
+    "severity": "low",
+    "description": "O cluster '{var}' não possui o Container Insights ativado, reduzindo a observabilidade sobre métricas e logs de containers.",
+    "remediation": "Edite as configurações do cluster e ative o 'Container Insights'.",
+    "pillar": "security",
+    "exposure": [
+      "compute"
+    ],
+    "permissions": [
+      "ecs:ListClusters",
+      "ecs:DescribeClusters"
+    ],
+    "evaluate": {
+      "resource": "ecs.cluster",
+      "service": "ecs",
+      "operation": "describe_clusters",
+      "skip_if_none": true,
+      "operator": "jsonpath",
+      "expression": "$.clusters[0].settings[?(@.name=='containerInsights' & @.value=='enabled')]",
+      "expected": "empty",
+      "_comment": "Busca a setting containerInsights=enabled no cluster"
+    }
+  }
+}

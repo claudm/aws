@@ -1,0 +1,83 @@
+{
+  "CLOUDFRONT.NO_ROOT_OBJECT": {
+    "title": "Distribuição CloudFront '{var}' sem default root object",
+    "severity": "low",
+    "description": "Sem DefaultRootObject, acessar a raiz do domínio devolve um erro ou o conteúdo do diretório — em vez de servir o index esperado.",
+    "remediation": "Configure DefaultRootObject (ex.: index.html) na distribuição.",
+    "pillar": "security",
+    "scope": "global",
+    "well_architected": "SEC09-BP02",
+    "permissions": [
+      "cloudfront:ListDistributions",
+      "cloudfront:GetDistribution"
+    ],
+    "evaluate": {
+      "resource": "cloudfront.distribution",
+      "service": "cloudfront",
+      "skip_if_none": true,
+      "operation": "get_distribution",
+      "extract": "Distribution.DistributionConfig.DefaultRootObject",
+      "operator": "falsy",
+      "region": "us-east-1",
+      "exposure": []
+    }
+  },
+  "CLOUDFRONT.NO_LOGGING": {
+    "title": "Distribuição CloudFront '{var}' sem logging",
+    "severity": "low",
+    "description": "Sem access logs não há como analisar tráfego, detectar abuso ou fazer forense de requisições na borda.",
+    "remediation": "Ative logging apontando para um bucket S3 (de preferência com lifecycle e Object Lock), ou use CloudFront real-time logs com Kinesis.",
+    "pillar": "security",
+    "scope": "global",
+    "well_architected": "SEC04-BP01",
+    "permissions": [
+      "cloudfront:ListDistributions",
+      "cloudfront:GetDistribution"
+    ],
+    "evaluate": {
+      "resource": "cloudfront.distribution",
+      "service": "cloudfront",
+      "skip_if_none": true,
+      "operator": "or",
+      "conditions": [
+        {
+          "operation": "get_distribution",
+          "extract": "Distribution.DistributionConfig.Logging.Enabled",
+          "operator": "falsy"
+        },
+        {
+          "operation": "get_distribution",
+          "extract": "Distribution.DistributionConfig.Logging.Bucket",
+          "operator": "falsy"
+        }
+      ],
+      "region": "us-east-1",
+      "exposure": []
+    }
+  },
+  "CLOUDFRONT.NO_WAF": {
+    "title": "Distribuição CloudFront '{var}' sem AWS WAF",
+    "severity": "medium",
+    "description": "Sem WAF, a borda não filtra SQLi, XSS, bots e floods. O CloudFront fica exposto diretamente à internet sem camada de proteção de aplicação.",
+    "remediation": "Associe um WebACL (managed rules AWSManagedRulesCommonRuleSet + rate-based rule) à distribuição.",
+    "pillar": "security",
+    "scope": "global",
+    "well_architected": "SEC09-BP02",
+    "permissions": [
+      "cloudfront:ListDistributions",
+      "cloudfront:GetDistribution"
+    ],
+    "evaluate": {
+      "resource": "cloudfront.distribution",
+      "service": "cloudfront",
+      "skip_if_none": true,
+      "operation": "get_distribution",
+      "extract": "Distribution.DistributionConfig.WebACLId",
+      "operator": "falsy",
+      "region": "us-east-1",
+      "exposure": [
+        "internet_facing"
+      ]
+    }
+  }
+}

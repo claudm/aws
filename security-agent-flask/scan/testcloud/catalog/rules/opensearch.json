@@ -1,0 +1,34 @@
+{
+  "OPENSEARCH.NOT_ENCRYPTED": {
+    "title": "Domínio OpenSearch '{var}' sem criptografia completa",
+    "severity": "high",
+    "description": "O domínio '{var}' não criptografa os dados em repouso e/ou o tráfego interno entre os nós.",
+    "remediation": "Habilite o node-to-node encryption nas configurações do domínio.",
+    "pillar": "security",
+    "exposure": [
+      "data_store"
+    ],
+    "permissions": [
+      "es:ListDomainNames",
+      "es:DescribeElasticsearchDomains"
+    ],
+    "evaluate": {
+      "resource": "es.domain",
+      "service": "es",
+      "skip_if_none": true,
+      "operator": "or",
+      "conditions": [
+        {
+          "operation": "describe_elasticsearch_domains",
+          "extract": "DomainStatusList.0.EncryptionAtRestOptions.Enabled",
+          "operator": "falsy"
+        },
+        {
+          "operation": "describe_elasticsearch_domains",
+          "extract": "DomainStatusList.0.NodeToNodeEncryptionOptions.Enabled",
+          "operator": "falsy"
+        }
+      ]
+    }
+  }
+}

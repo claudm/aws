@@ -1,0 +1,23 @@
+{
+  "BEDROCK.MODEL_INVOCATION_LOGGING": {
+    "title": "Log de invocação de modelos do Bedrock está desativado",
+    "severity": "high",
+    "description": "A AWS recomenda habilitar os logs de invocação de modelo para auditoria e compliance no Amazon Bedrock.",
+    "remediation": "Ative o Model Invocation Logging no console do Bedrock, enviando os logs para o CloudWatch Logs ou S3.",
+    "pillar": "security",
+    "exposure": [
+      "data_store"
+    ],
+    "permissions": [
+      "bedrock:GetModelInvocationLoggingConfiguration"
+    ],
+    "evaluate": {
+      "resource": "bedrock.account",
+      "service": "bedrock",
+      "operation": "get_model_invocation_logging_configuration",
+      "skip_if_none": true,
+      "extract": "loggingConfig",
+      "operator": "falsy"
+    }
+  }
+}

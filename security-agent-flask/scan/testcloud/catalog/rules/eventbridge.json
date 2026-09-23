@@ -1,0 +1,56 @@
+{
+  "EVENTBRIDGE.OPEN_BUS_POLICY": {
+    "title": "Event Bus '{var}' permite acesso anônimo sem condições",
+    "severity": "critical",
+    "description": "A Resource-Based Policy do bus '{var}' concede Effect=Allow e Principal='*' sem nenhuma cláusula de Condition (ex: aws:PrincipalOrgID). Isso permite que qualquer conta AWS publique eventos no seu ambiente.",
+    "remediation": "Restrinja o Principal à sua conta AWS/Organização ou adicione Conditions estritas na policy do EventBridge.",
+    "pillar": "security",
+    "permissions": [
+      "events:ListEventBuses",
+      "events:DescribeEventBus"
+    ],
+    "evaluate": {
+      "resource": "events.bus",
+      "service": "events",
+      "skip_if_none": true,
+      "operation": "describe_event_bus",
+      "extract": "Policy.Statement",
+      "operator": "any_item",
+      "json_parse": [
+        "Policy"
+      ],
+      "where": {
+        "operator": "and",
+        "conditions": [
+          {
+            "extract": "Effect",
+            "operator": "equals",
+            "value": "Allow"
+          },
+          {
+            "operator": "or",
+            "conditions": [
+              {
+                "extract": "Principal",
+                "operator": "equals",
+                "value": "*"
+              },
+              {
+                "extract": "Principal.AWS",
+                "operator": "equals",
+                "value": "*"
+              }
+            ]
+          },
+          {
+            "extract": "Condition",
+            "operator": "falsy"
+          }
+        ]
+      },
+      "exposure": [
+        "internet_facing"
+      ]
+    }
+  }
+}

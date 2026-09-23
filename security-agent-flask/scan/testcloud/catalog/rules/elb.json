@@ -1,0 +1,323 @@
+{
+  "ELB.INSECURE_LISTENER": {
+    "title": "ALB '{var}' usa política TLS obsoleta",
+    "severity": "medium",
+    "description": "A policy {var} ainda aceita TLS 1.0/1.1.",
+    "remediation": "Migre para ELBSecurityPolicy-TLS13-1-2-2021-06 após validar clientes legados.",
+    "pillar": "security",
+    "well_architected": "SEC09-BP02",
+    "permissions": [
+      "elasticloadbalancing:DescribeLoadBalancers",
+      "elasticloadbalancing:DescribeListeners"
+    ],
+    "evaluate": [
+      {
+        "resource": "elbv2.load_balancer",
+        "service": "elbv2",
+        "skip_if_none": true,
+        "operator": "and",
+        "conditions": [
+          {
+            "operation": "describe_load_balancers",
+            "extract": "LoadBalancers.0.Type",
+            "operator": "equals",
+            "value": "application",
+            "params": {
+              "LoadBalancerArns": [
+                "{LoadBalancerArn}"
+              ]
+            }
+          },
+          {
+            "operation": "describe_listeners",
+            "extract": "Listeners",
+            "operator": "any_item",
+            "id": "http",
+            "collect": "Port",
+            "where": {
+              "operator": "and",
+              "conditions": [
+                {
+                  "extract": "Protocol",
+                  "operator": "equals",
+                  "value": "HTTP"
+                },
+                {
+                  "extract": "DefaultActions",
+                  "operator": "none_item",
+                  "where": {
+                    "operator": "and",
+                    "conditions": [
+                      {
+                        "extract": "Type",
+                        "operator": "equals",
+                        "value": "redirect"
+                      },
+                      {
+                        "extract": "RedirectConfig.Protocol",
+                        "operator": "equals",
+                        "value": "HTTPS"
+                      }
+                    ]
+                  }
+                }
+              ]
+            }
+          }
+        ],
+        "severity": "medium",
+        "exposure": [],
+        "vars": [
+          {
+            "capture": "http",
+            "field": "values",
+            "transform": "join"
+          }
+        ],
+        "title": "ALB '{var}' atende HTTP na porta {var} sem redirect",
+        "description": "Tráfego trafega em texto claro, incluindo cookies de sessão e headers de autorização.",
+        "remediation": "Troque a default action por redirect 301 para HTTPS e force HSTS na aplicação.",
+        "overrides": [
+          {
+            "when": {
+              "operation": "describe_load_balancers",
+              "extract": "LoadBalancers.0.Scheme",
+              "operator": "equals",
+              "value": "internet-facing",
+              "params": {
+                "LoadBalancerArns": [
+                  "{LoadBalancerArn}"
+                ]
+              }
+            },
+            "severity": "high",
+            "exposure": [
+              "internet_facing"
+            ]
+          }
+        ]
+      },
+      {
+        "resource": "elbv2.load_balancer",
+        "service": "elbv2",
+        "skip_if_none": true,
+        "operator": "and",
+        "conditions": [
+          {
+            "operation": "describe_load_balancers",
+            "extract": "LoadBalancers.0.Type",
+            "operator": "equals",
+            "value": "application",
+            "params": {
+              "LoadBalancerArns": [
+                "{LoadBalancerArn}"
+              ]
+            }
+          },
+          {
+            "operation": "describe_listeners",
+            "extract": "Listeners",
+            "operator": "any_item",
+            "id": "tls",
+            "collect": "SslPolicy",
+            "where": {
+              "operator": "and",
+              "conditions": [
+                {
+                  "extract": "Protocol",
+                  "operator": "not_equals",
+                  "value": "HTTP"
+                },
+                {
+                  "extract": "SslPolicy",
+                  "operator": "in",
+                  "value": [
+                    "ELBSecurityPolicy-2016-08",
+                    "ELBSecurityPolicy-TLS-1-0",
+                    "ELBSecurityPolicy-TLS-1-1"
+                  ]
+                }
+              ]
+            }
+          }
+        ],
+        "severity": "medium",
+        "exposure": [],
+        "vars": [
+          {
+            "capture": "tls",
+            "field": "values",
+            "transform": "join"
+          }
+        ],
+        "description": "O ALB '{var}' usa a policy {var}, que ainda aceita TLS 1.0/1.1.",
+        "overrides": [
+          {
+            "when": {
+              "operation": "describe_load_balancers",
+              "extract": "LoadBalancers.0.Scheme",
+              "operator": "equals",
+              "value": "internet-facing",
+              "params": {
+                "LoadBalancerArns": [
+                  "{LoadBalancerArn}"
+                ]
+              }
+            },
+            "exposure": [
+              "internet_facing"
+            ]
+          }
+        ]
+      }
+    ]
+  },
+  "ELB.ACCESS_LOGS_DISABLED": {
+    "title": "Load balancer '{var}' sem access logs",
+    "severity": "low",
+    "description": "Sem logs de acesso não há análise de tráfego malicioso nem forense de requisições.",
+    "remediation": "Ative entrega para S3 com lifecycle e consulte via Athena.",
+    "pillar": "security",
+    "well_architected": "SEC04-BP01",
+    "permissions": [
+      "elasticloadbalancing:DescribeLoadBalancerAttributes"
+    ],
+    "evaluate": {
+      "resource": "elbv2.load_balancer",
+      "service": "elbv2",
+      "skip_if_none": true,
+      "operation": "describe_load_balancer_attributes",
+      "operator": "jsonpath",
+      "expression": "$.Attributes[?(@.Key=='access_logs.s3.enabled' & @.Value=='true')]",
+      "expected": "empty",
+      "exposure": []
+    }
+  },
+  "ELB.DROP_INVALID_HEADERS": {
+    "title": "ALB '{var}' não descarta headers HTTP inválidos",
+    "severity": "",
+    "description": "Com o descarte desligado, o ALB repassa headers malformados ao backend. Isso pode ser usado para contornar WAFs e proxies que inspecionam o header original (header smuggling / desync).",
+    "remediation": "Ative o atributo routing.http.drop_invalid_header_fields.enabled no ALB (console: Attributes > Drop invalid header fields).",
+    "pillar": "security",
+    "well_architected": "SEC09-BP02",
+    "permissions": [
+      "elasticloadbalancing:DescribeLoadBalancerAttributes",
+      "elasticloadbalancing:DescribeLoadBalancers"
+    ],
+    "evaluate": {
+      "resource": "elbv2.load_balancer",
+      "service": "elbv2",
+      "skip_if_none": true,
+      "operator": "and",
+      "conditions": [
+        {
+          "operation": "describe_load_balancers",
+          "extract": "LoadBalancers.0.Type",
+          "operator": "equals",
+          "value": "application",
+          "params": {
+            "LoadBalancerArns": [
+              "{LoadBalancerArn}"
+            ]
+          }
+        },
+        {
+          "operation": "describe_load_balancer_attributes",
+          "operator": "jsonpath",
+          "expression": "$.Attributes[?(@.Key=='routing.http.drop_invalid_header_fields.enabled' & @.Value=='true')]",
+          "expected": "empty"
+        }
+      ],
+      "severity": "low",
+      "exposure": [],
+      "overrides": [
+        {
+          "when": {
+            "operation": "describe_load_balancers",
+            "extract": "LoadBalancers.0.Scheme",
+            "operator": "equals",
+            "value": "internet-facing",
+            "params": {
+              "LoadBalancerArns": [
+                "{LoadBalancerArn}"
+              ]
+            }
+          },
+          "severity": "medium",
+          "exposure": [
+            "internet_facing"
+          ]
+        }
+      ]
+    }
+  },
+  "ELB.SINGLE_AZ": {
+    "title": "Load balancer '{var}' está em apenas 1 AZ",
+    "severity": "high",
+    "description": "A indisponibilidade de uma zona derruba todo o ponto de entrada do serviço.",
+    "remediation": "Adicione subnets em pelo menos duas AZs e mantenha cross-zone load balancing ativo.",
+    "pillar": "reliability",
+    "well_architected": "REL10-BP01",
+    "permissions": [
+      "elasticloadbalancing:DescribeLoadBalancers"
+    ],
+    "evaluate": {
+      "resource": "elbv2.load_balancer",
+      "service": "elbv2",
+      "skip_if_none": true,
+      "operator": "and",
+      "conditions": [
+        {
+          "operation": "describe_load_balancers",
+          "extract": "LoadBalancers.0.AvailabilityZones",
+          "operator": "len_lt",
+          "value": 2,
+          "params": {
+            "LoadBalancerArns": [
+              "{LoadBalancerArn}"
+            ]
+          }
+        }
+      ],
+      "exposure": []
+    }
+  },
+  "ELB.NO_DELETION_PROTECTION": {
+    "title": "ALB '{var}' sem deletion protection",
+    "severity": "low",
+    "description": "Um delete acidental (console, IaC, automação) remove o ponto de entrada do serviço sem barreira adicional.",
+    "remediation": "Ative deletion_protection.enabled no ALB e proteja o recurso no IaC (prevent_destroy).",
+    "pillar": "reliability",
+    "well_architected": "REL09-BP03",
+    "permissions": [
+      "elasticloadbalancing:DescribeLoadBalancerAttributes",
+      "elasticloadbalancing:DescribeLoadBalancers"
+    ],
+    "evaluate": {
+      "resource": "elbv2.load_balancer",
+      "service": "elbv2",
+      "skip_if_none": true,
+      "operator": "and",
+      "conditions": [
+        {
+          "operation": "describe_load_balancers",
+          "extract": "LoadBalancers.0.Type",
+          "operator": "equals",
+          "value": "application",
+          "params": {
+            "LoadBalancerArns": [
+              "{LoadBalancerArn}"
+            ]
+          }
+        },
+        {
+          "operation": "describe_load_balancer_attributes",
+          "operator": "jsonpath",
+          "expression": "$.Attributes[?(@.Key=='deletion_protection.enabled' & @.Value=='true')]",
+          "expected": "empty"
+        }
+      ],
+      "exposure": []
+    }
+  }
+}

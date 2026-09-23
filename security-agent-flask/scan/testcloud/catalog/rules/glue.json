@@ -1,0 +1,27 @@
+{
+  "GLUE.CATALOG_ENCRYPTION": {
+    "title": "O Glue Data Catalog não está configurado para criptografia em repouso",
+    "severity": "high",
+    "description": "A criptografia em repouso do Glue Data Catalog (EncryptionAtRest) está desabilitada.",
+    "remediation": "Habilite a criptografia em repouso nas configurações do Data Catalog usando uma chave KMS (SSE-KMS).",
+    "pillar": "security",
+    "exposure": [
+      "data_store"
+    ],
+    "permissions": [
+      "glue:GetDataCatalogEncryptionSettings"
+    ],
+    "evaluate": {
+      "resource": "glue.account",
+      "service": "glue",
+      "operation": "get_data_catalog_encryption_settings",
+      "skip_if_none": true,
+      "extract": "DataCatalogEncryptionSettings.EncryptionAtRest.CatalogEncryptionMode",
+      "operator": "in",
+      "value": [
+        null,
+        "DISABLED"
+      ]
+    }
+  }
+}

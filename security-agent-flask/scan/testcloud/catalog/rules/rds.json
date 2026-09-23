@@ -1,0 +1,417 @@
+{
+  "RDS.PUBLICLY_ACCESSIBLE": {
+    "title": "RDS '{var}' está marcado como publicamente acessível",
+    "severity": "critical",
+    "description": "A instância recebe endereço resolvível pela internet. A exposição efetiva ainda depende do security group, mas é uma regra permissiva a um erro de distância.",
+    "remediation": "Modifique a instância para PubliclyAccessible=false, mova para subnets privadas e publique acesso apenas via bastion SSM ou VPN.",
+    "pillar": "security",
+    "well_architected": "SEC05-BP01",
+    "permissions": [
+      "rds:DescribeDBInstances"
+    ],
+    "evaluate": {
+      "resource": "rds.instance",
+      "service": "rds",
+      "skip_if_none": true,
+      "operation": "describe_db_instances",
+      "extract": "DBInstances.0.PubliclyAccessible",
+      "operator": "truthy",
+      "exposure": [
+        "internet_facing",
+        "data_store"
+      ],
+      "env_tags": {
+        "operation": "describe_db_instances",
+        "extract": "DBInstances.0.TagList"
+      }
+    }
+  },
+  "RDS.STORAGE_NOT_ENCRYPTED": {
+    "title": "RDS '{var}' sem criptografia em repouso",
+    "severity": "high",
+    "description": "Storage, snapshots automáticos e read replicas ficam sem criptografia. Não é possível habilitar in-place.",
+    "remediation": "Snapshot > copy com KMS key > restore para nova instância > cutover com janela planejada. Avalie DMS para reduzir downtime.",
+    "pillar": "security",
+    "well_architected": "SEC08-BP02",
+    "permissions": [
+      "rds:DescribeDBInstances"
+    ],
+    "evaluate": {
+      "resource": "rds.instance",
+      "service": "rds",
+      "skip_if_none": true,
+      "operation": "describe_db_instances",
+      "extract": "DBInstances.0.StorageEncrypted",
+      "operator": "falsy",
+      "exposure": [
+        "data_store"
+      ],
+      "env_tags": {
+        "operation": "describe_db_instances",
+        "extract": "DBInstances.0.TagList"
+      }
+    }
+  },
+  "RDS.AUTO_MINOR_UPGRADE_OFF": {
+    "title": "RDS '{var}' não aplica minor versions automaticamente",
+    "severity": "low",
+    "description": "O banco '{var}' (engine {var} {var}) fica sem patches de segurança até intervenção manual.",
+    "remediation": "Ative AutoMinorVersionUpgrade com janela de manutenção fora do horário de pico.",
+    "pillar": "security",
+    "well_architected": "SEC06-BP03",
+    "permissions": [
+      "rds:DescribeDBInstances"
+    ],
+    "evaluate": {
+      "resource": "rds.instance",
+      "service": "rds",
+      "skip_if_none": true,
+      "operation": "describe_db_instances",
+      "extract": "DBInstances.0.AutoMinorVersionUpgrade",
+      "operator": "falsy",
+      "exposure": [],
+      "vars": [
+        {
+          "extract": "DBInstances.0.Engine"
+        },
+        {
+          "extract": "DBInstances.0.EngineVersion"
+        }
+      ]
+    }
+  },
+  "RDS.SNAPSHOT_NOT_ENCRYPTED": {
+    "title": "Snapshot de cluster '{var}' sem criptografia",
+    "severity": "high",
+    "description": "Snapshots manuais de Aurora sem criptografia expõem os dados em repouso.",
+    "remediation": "Copie o snapshot com uma CMK e delete o original. Para novos clusters, ative StorageEncrypted na criação.",
+    "pillar": "security",
+    "well_architected": "SEC08-BP02",
+    "permissions": [
+      "rds:DescribeDBSnapshots",
+      "rds:DescribeDBClusterSnapshots"
+    ],
+    "evaluate": [
+      {
+        "resource": "rds.snapshot",
+        "service": "rds",
+        "skip_if_none": true,
+        "operation": "describe_db_snapshots",
+        "extract": "DBSnapshots.0.Encrypted",
+        "operator": "falsy",
+        "exposure": [
+          "data_store"
+        ],
+        "title": "Snapshot RDS '{var}' sem criptografia",
+        "description": "Snapshots manuais herdam a criptografia da instância de origem. Um snapshot sem criptografia expõe os dados em repouso a quem tiver acesso ao bucket/backup.",
+        "remediation": "Copie o snapshot com uma CMK (rds-copy-db-snapshot --source-region) e delete o original. Para novos bancos, ative StorageEncrypted na criação."
+      },
+      {
+        "resource": "rds.cluster_snapshot",
+        "service": "rds",
+        "skip_if_none": true,
+        "operation": "describe_db_cluster_snapshots",
+        "extract": "DBClusterSnapshots.0.StorageEncrypted",
+        "operator": "falsy",
+        "exposure": [
+          "data_store"
+        ]
+      }
+    ]
+  },
+  "RDS.NO_IAM_AUTH": {
+    "title": "Cluster RDS '{var}' sem autenticação IAM",
+    "severity": "low",
+    "description": "Sem IAM auth, o acesso ao cluster depende de senhas de longa duração. Com IAM auth, o cliente troca credenciais AWS por um token de banco de 15 minutos.",
+    "remediation": "Ative IAMDatabaseAuthenticationEnabled no cluster e use o driver com token gerado via rds.generate-db-auth-token.",
+    "pillar": "security",
+    "well_architected": "SEC02-BP03",
+    "permissions": [
+      "rds:DescribeDBInstances",
+      "rds:DescribeDBClusters"
+    ],
+    "evaluate": [
+      {
+        "resource": "rds.instance",
+        "service": "rds",
+        "skip_if_none": true,
+        "operation": "describe_db_instances",
+        "extract": "DBInstances.0.IAMDatabaseAuthenticationEnabled",
+        "operator": "falsy",
+        "exposure": [],
+        "title": "RDS '{var}' sem autenticação IAM",
+        "description": "Sem IAM auth, o acesso ao banco depende de senhas de longa duração armazenadas em configs e secrets. Com IAM auth, o cliente troca credenciais AWS por um token de banco de 15 minutos.",
+        "remediation": "Ative IAMDatabaseAuthenticationEnabled e use o driver com token gerado via rds.generate-db-auth-token (ou o proxy RDS Data API)."
+      },
+      {
+        "resource": "rds.cluster",
+        "service": "rds",
+        "skip_if_none": true,
+        "operation": "describe_db_clusters",
+        "extract": "DBClusters.0.IAMDatabaseAuthenticationEnabled",
+        "operator": "falsy",
+        "exposure": []
+      }
+    ]
+  },
+  "RDS.NO_COPY_TAGS_TO_SNAPSHOT": {
+    "title": "Cluster RDS '{var}' não copia tags para snapshots",
+    "severity": "low",
+    "description": "Sem CopyTagsToSnapshot, os snapshots do cluster nascem sem as tags de owner/custo/ambiente — dificultando governança e chargeback.",
+    "remediation": "Ative CopyTagsToSnapshot no cluster (modify-db-cluster).",
+    "pillar": "security",
+    "well_architected": "SEC03-BP05",
+    "permissions": [
+      "rds:DescribeDBInstances",
+      "rds:DescribeDBClusters"
+    ],
+    "evaluate": [
+      {
+        "resource": "rds.instance",
+        "service": "rds",
+        "skip_if_none": true,
+        "operation": "describe_db_instances",
+        "extract": "DBInstances.0.CopyTagsToSnapshot",
+        "operator": "falsy",
+        "exposure": [],
+        "title": "RDS '{var}' não copia tags para snapshots",
+        "description": "Sem CopyTagsToSnapshot, os snapshots nascem sem as tags de owner/custo/ambiente da instância — dificultando governança, chargeback e localização de backups.",
+        "remediation": "Ative CopyTagsToSnapshot na instância (modify-db-instance)."
+      },
+      {
+        "resource": "rds.cluster",
+        "service": "rds",
+        "skip_if_none": true,
+        "operation": "describe_db_clusters",
+        "extract": "DBClusters.0.CopyTagsToSnapshot",
+        "operator": "falsy",
+        "exposure": []
+      }
+    ]
+  },
+  "RDS.BACKUP_RETENTION": {
+    "title": "RDS '{var}' com retenção de {var} dia(s)",
+    "severity": "medium",
+    "description": "O banco '{var}' tem janela de PITR de apenas {var} dia(s): corrupção silenciosa detectada depois disso é irrecuperável.",
+    "remediation": "Defina BackupRetentionPeriod ≥ 7 e centralize retenção longa no AWS Backup.",
+    "pillar": "reliability",
+    "well_architected": "REL09-BP01",
+    "permissions": [
+      "rds:DescribeDBInstances"
+    ],
+    "evaluate": {
+      "resource": "rds.instance",
+      "service": "rds",
+      "skip_if_none": true,
+      "operation": "describe_db_instances",
+      "extract": "DBInstances.0.BackupRetentionPeriod",
+      "operator": "lt",
+      "value": 7,
+      "vars": [
+        {
+          "extract": "DBInstances.0.BackupRetentionPeriod"
+        }
+      ],
+      "exposure": [
+        "data_store"
+      ],
+      "env_tags": {
+        "operation": "describe_db_instances",
+        "extract": "DBInstances.0.TagList"
+      },
+      "overrides": [
+        {
+          "when": {
+            "operation": "describe_db_instances",
+            "extract": "DBInstances.0.BackupRetentionPeriod",
+            "operator": "equals",
+            "value": 0
+          },
+          "severity": "high",
+          "description": "Retenção 0 desliga backups automáticos e point-in-time recovery."
+        }
+      ]
+    }
+  },
+  "RDS.NO_MULTI_AZ": {
+    "title": "RDS '{var}' roda em AZ única",
+    "severity": "",
+    "description": "Falha da AZ ou manutenção do host derruba o banco. O failover manual a partir de snapshot leva dezenas de minutos.",
+    "remediation": "Habilite Multi-AZ (conversão online, com pico de latência de escrita). Para Aurora, adicione um reader em outra AZ.",
+    "pillar": "reliability",
+    "well_architected": "REL10-BP01",
+    "permissions": [
+      "rds:DescribeDBInstances"
+    ],
+    "evaluate": {
+      "resource": "rds.instance",
+      "service": "rds",
+      "skip_if_none": true,
+      "operator": "and",
+      "conditions": [
+        {
+          "operation": "describe_db_instances",
+          "extract": "DBInstances.0.MultiAZ",
+          "operator": "falsy"
+        },
+        {
+          "operation": "describe_db_instances",
+          "extract": "DBInstances.0.DBClusterIdentifier",
+          "operator": "falsy"
+        }
+      ],
+      "severity": "high",
+      "exposure": [
+        "data_store"
+      ],
+      "env_tags": {
+        "operation": "describe_db_instances",
+        "extract": "DBInstances.0.TagList"
+      },
+      "overrides": [
+        {
+          "when": {
+            "operation": "describe_db_instances",
+            "extract": "DBInstances.0.TagList",
+            "operator": "env_is",
+            "value": "non_production_tag"
+          },
+          "severity": "medium"
+        }
+      ]
+    }
+  },
+  "RDS.NO_DELETION_PROTECTION": {
+    "title": "RDS '{var}' sem deletion protection",
+    "severity": "low",
+    "description": "Um terraform destroy ou clique errado remove o banco sem barreira adicional.",
+    "remediation": "Ative DeletionProtection e, no Terraform, use prevent_destroy no lifecycle.",
+    "pillar": "reliability",
+    "well_architected": "REL09-BP03",
+    "permissions": [
+      "rds:DescribeDBInstances"
+    ],
+    "evaluate": {
+      "resource": "rds.instance",
+      "service": "rds",
+      "skip_if_none": true,
+      "operation": "describe_db_instances",
+      "extract": "DBInstances.0.DeletionProtection",
+      "operator": "falsy",
+      "exposure": [],
+      "env_tags": {
+        "operation": "describe_db_instances",
+        "extract": "DBInstances.0.TagList"
+      }
+    }
+  },
+  "COST.RDS_IDLE": {
+    "title": "RDS '{var}' ({var}) sem nenhuma conexão em 14 dias",
+    "severity": "medium",
+    "description": "O máximo diário de DatabaseConnections ficou em zero nos últimos 14 dias. A instância é cobrada por hora mesmo sem uso.",
+    "remediation": "Confirme com o dono; tire um snapshot final e delete a instância, ou pare-a (o RDS religa sozinho após 7 dias parada).",
+    "pillar": "cost",
+    "well_architected": "COST04-BP03",
+    "exposure": [
+      "empty_resource"
+    ],
+    "permissions": [
+      "rds:DescribeDBInstances",
+      "cloudwatch:GetMetricData",
+      "pricing:GetProducts"
+    ],
+    "evaluate": {
+      "resource": "rds.instance",
+      "service": "rds",
+      "skip_if_none": true,
+      "operator": "and",
+      "conditions": [
+        {
+          "operation": "describe_db_instances",
+          "extract": "DBInstances.0.DBInstanceStatus",
+          "operator": "equals",
+          "value": "available"
+        },
+        {
+          "operation": "get_metric_data",
+          "service": "cloudwatch",
+          "batch": true,
+          "params": {
+            "MetricDataQueries": [
+              {
+                "Id": "result",
+                "ReturnData": true,
+                "MetricStat": {
+                  "Metric": {
+                    "Namespace": "AWS/RDS",
+                    "MetricName": "DatabaseConnections",
+                    "Dimensions": [
+                      {
+                        "Name": "DBInstanceIdentifier",
+                        "Value": "{DBInstanceIdentifier}"
+                      }
+                    ]
+                  },
+                  "Period": 86400,
+                  "Stat": "Maximum"
+                }
+              }
+            ],
+            "StartTime": "{now-14d}",
+            "EndTime": "{now}"
+          },
+          "operator": "aggregate",
+          "extract": "MetricDataResults.0.Values",
+          "fn": "max",
+          "compare": "lte",
+          "value": 0,
+          "min_count": 7
+        }
+      ],
+      "vars": [
+        {
+          "operation": "describe_db_instances",
+          "extract": "DBInstances.0.DBInstanceClass"
+        }
+      ],
+      "env_tags": {
+        "operation": "describe_db_instances",
+        "extract": "DBInstances.0.TagList"
+      },
+      "waste": {
+        "fn": "rds_monthly",
+        "ctx": true,
+        "args": [
+          {
+            "operation": "describe_db_instances",
+            "extract": "DBInstances.0.DBInstanceClass"
+          },
+          {
+            "operation": "describe_db_instances",
+            "extract": "DBInstances.0.Engine"
+          },
+          {
+            "operation": "describe_db_instances",
+            "extract": "DBInstances.0.MultiAZ",
+            "default": false
+          },
+          {
+            "operation": "describe_db_instances",
+            "extract": "DBInstances.0.LicenseModel"
+          }
+        ]
+      },
+      "overrides": [
+        {
+          "when": {
+            "capture": "waste",
+            "extract": "value",
+            "operator": "equals",
+            "value": null
+          },
+          "description": "O máximo diário de DatabaseConnections ficou em zero nos últimos 14 dias. A instância é cobrada por hora mesmo sem uso. Economia não estimada: o preço não foi encontrado na Price List (verifique a permissão pricing:GetProducts e se o tipo existe na região)."
+        }
+      ]
+    }
+  }
+}
