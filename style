@@ -1,0 +1,11 @@
+Esse padrão de interface se chama side panel, também conhecido como drawer ou slide-over panel: um painel que desliza pela lateral, em geral da direita, por cima da página. O fundo escurecido atrás dele se chama overlay ou backdrop.
+
+Variações do nome que você pode encontrar:
+
+Drawer (Material Design e Ant Design) ou Sheet / Side sheet (Material e shadcn/ui).
+Flyout (Microsoft e AWS) ou Slide-over (Tailwind UI).
+Master-detail, quando o padrão é clicar num item da lista e ver os detalhes ao lado sem sair da página.
+Inspector panel, quando a parte interna tem cabeçalho de resumo, abas e tabela chave/valor, como no trace. É o nome usado no Datadog, SigNoz e Chrome DevTools. Por isso o componente do projeto se chama TraceInspector.
+Para pedir esse layout em outra tela, diga "inspector em drawer lateral", ou "side panel no estilo do TraceInspector".
+
+O popup pequeno e centralizado que o Settings usava nos formulários s
